@@ -1,0 +1,12 @@
+"use client";
+
+import { createContext, useCallback, useContext, useEffect, useMemo, useState } from "react";
+import { Opportunity, SEED_OPPORTUNITIES, Stage } from "./data";
+import { Draft, generateDraft } from "./outreach";
+const STORAGE_KEY = "signal-scout-state-v1";
+interface State { opportunities: Opportunity[]; drafts: Record<string, Draft>; }
+interface Store extends State { get: (id: string) => Opportunity | undefined; update: (id: string, patch: Partial<Opportunity>) => void; setStage: (id: string, stage: Stage | null) => void; addLead: (lead: Opportunity) => void; saveDraft: (id: string, draft: Draft) => void; getDraft: (id: string) => Draft; reset: () => void; }
+function initialState(): State { const bow = SEED_OPPORTUNITIES.find((o) => o.id === "bow-river-wtp")!; return { opportunities: SEED_OPPORTUNITIES, drafts: { [bow.id]: { ...generateDraft(bow), updatedAt: Date.now() - 120000 } } }; }
+const StoreContext = createContext<Store | null>(null);
+export function StoreProvider({ children }: { children: React.ReactNode }) { const [state, setState] = useState<State>(initialState); const [loaded, setLoaded] = useState(false); useEffect(() => { try { const raw = window.localStorage.getItem(STORAGE_KEY); if (raw) setState(JSON.parse(raw)); } catch { /* keep sample data */ } setLoaded(true); }, []); useEffect(() => { if (!loaded) return; try { window.localStorage.setItem(STORAGE_KEY, JSON.stringify(state)); } catch { /* storage unavailable */ } }, [state, loaded]); const update = useCallback((id: string, patch: Partial<Opportunity>) => setState((s) => ({ ...s, opportunities: s.opportunities.map((o) => o.id === id ? { ...o, ...patch } : o) })), []); const store = useMemo<Store>(() => ({ ...state, get: (id) => state.opportunities.find((o) => o.id === id), update, setStage: (id, stage) => update(id, { stage }), addLead: (lead) => setState((s) => ({ ...s, opportunities: [...s.opportunities, lead] })), saveDraft: (id, draft) => setState((s) => ({ ...s, drafts: { ...s.drafts, [id]: draft } })), getDraft: (id) => state.drafts[id] ?? generateDraft(state.opportunities.find((o) => o.id === id)!), reset: () => setState(initialState()) }), [state, update]); return <StoreContext.Provider value={store}>{children}</StoreContext.Provider>; }
+export function useStore() { const ctx = useContext(StoreContext); if (!ctx) throw new Error("useStore must be used inside <StoreProvider>"); return ctx; }
