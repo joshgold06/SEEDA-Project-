@@ -4,7 +4,8 @@ import "@fontsource/jetbrains-mono/400.css";
 import "@fontsource/jetbrains-mono/500.css";
 import "@fontsource/jetbrains-mono/700.css";
 import "./globals.css";
-import { Sidebar } from "@/components/Sidebar";
+import { AppShell } from "@/components/AppShell";
+import { AuthProvider } from "@/lib/AuthContext";
 import { StoreProvider } from "@/lib/store";
 
 export const metadata: Metadata = {
@@ -16,7 +17,11 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
   return (
     <html lang="en">
       <body className="font-sans antialiased">
-        <StoreProvider><div className="flex min-h-screen"><Sidebar /><div className="flex min-w-0 flex-1">{children}</div></div></StoreProvider>
+        <AuthProvider>
+          <StoreProvider>
+            <AppShell>{children}</AppShell>
+          </StoreProvider>
+        </AuthProvider>
       </body>
     </html>
   );

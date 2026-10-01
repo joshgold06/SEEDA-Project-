@@ -136,12 +136,6 @@ insert into opportunities (
 )
 on conflict (id) do nothing;
 
-insert into outreach_drafts (opportunity_id, subject, body, tone, updated_at)
-values (
-  'bow-river-wtp',
-  'Interest in Bow River Water Treatment Plant',
-  E'Hello Procurement team,\n\nI hope you are well. I am reaching out regarding the Bow River Water Treatment Plant opportunity (OPP-2026-041). Our team has relevant experience in Water Infrastructure, and we would welcome a short conversation about how we could support the next phase.\n\nWould you be open to a 20-minute technical brief next week?\n\nBest,\nSarah Mitchell',
-  'Warm',
-  now() - interval '2 minutes'
-)
-on conflict (opportunity_id) do nothing;
+-- No pre-seeded outreach draft: the app generates one on demand (signed with
+-- whichever user is logged in) the first time someone opens an opportunity's
+-- shortlist page, via lib/outreach.ts's generateDraft().

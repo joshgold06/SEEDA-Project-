@@ -1,8 +1,12 @@
 import Link from "next/link";
 import { ChevronRight, ChevronLeft } from "lucide-react";
 
-const AVATAR_COLORS: Record<string, string> = { SM: "bg-amber-800", JL: "bg-sky-700", AK: "bg-stone-500" };
-export function Avatar({ initials, size = 22 }: { initials: string; size?: number }) { return <span className={`inline-grid shrink-0 place-items-center rounded-full font-semibold text-white ${AVATAR_COLORS[initials] ?? "bg-neutral-600"}`} style={{ width: size, height: size, fontSize: size * 0.38 }} title={initials}>{initials}</span>; }
+const AVATAR_PALETTE = ["bg-amber-800", "bg-sky-700", "bg-stone-500", "bg-emerald-700", "bg-rose-700", "bg-indigo-700", "bg-teal-700"];
+function colorForInitials(initials: string) { let hash = 0; for (const ch of initials) hash = (hash * 31 + ch.charCodeAt(0)) >>> 0; return AVATAR_PALETTE[hash % AVATAR_PALETTE.length]; }
+export function Avatar({ initials, size = 22, src, title }: { initials: string; size?: number; src?: string; title?: string }) {
+  if (src) return <img src={src} alt={title ?? initials} title={title ?? initials} className="shrink-0 rounded-full object-cover" style={{ width: size, height: size }} />;
+  return <span className={`inline-grid shrink-0 place-items-center rounded-full font-semibold text-white ${colorForInitials(initials)}`} style={{ width: size, height: size, fontSize: size * 0.38 }} title={title ?? initials}>{initials}</span>;
+}
 export function Score({ value, className = "" }: { value: number; className?: string }) { return <span className={`font-mono text-[11px] font-semibold ${value >= 85 ? "text-brand" : "text-neutral-400"} ${className}`}>Score: {value}</span>; }
 export function Tag({ children, tone = "neutral" }: { children: React.ReactNode; tone?: "neutral" | "brand" }) { return <span className={`inline-flex items-center rounded px-1.5 py-0.5 text-[10.5px] font-medium ${tone === "brand" ? "border border-brand-line bg-brand-soft text-brand-dark" : "border border-neutral-200 bg-neutral-100 text-neutral-600"}`}>{children}</span>; }
 export function Breadcrumbs({ items, back }: { items: { label: string; href?: string }[]; back?: string }) { return <nav aria-label="Breadcrumb" className="flex items-center gap-2 text-[13px] text-neutral-600">{back && <Link href={back} aria-label="Back" className="mr-1 text-neutral-500 hover:text-ink"><ChevronLeft className="size-4" /></Link>}{items.map((item, i) => { const last = i === items.length - 1; return <span key={item.label} className="flex items-center gap-2">{item.href && !last ? <Link href={item.href} className="hover:text-ink">{item.label}</Link> : <span className={last ? "font-medium text-ink" : ""}>{item.label}</span>}{!last && <ChevronRight className="size-3.5 text-neutral-400" />}</span>; })}</nav>; }

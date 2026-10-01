@@ -3,6 +3,7 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from "react";
 import { Opportunity, SEED_OPPORTUNITIES, Stage } from "./data";
 import { Draft, generateDraft } from "./outreach";
+import { useAuth } from "./AuthContext";
 import { createClient, isSupabaseConfigured } from "./supabase/client";
 import { draftToRow, opportunityToRow, rowToDraft, rowToOpportunity } from "./supabase/mappers";
 
@@ -21,15 +22,17 @@ interface Store extends State {
   reset: () => void;
 }
 
-function seedState(): State {
+function seedState(senderName: string): State {
   const bow = SEED_OPPORTUNITIES.find((o) => o.id === "bow-river-wtp")!;
-  return { opportunities: SEED_OPPORTUNITIES, drafts: { [bow.id]: { ...generateDraft(bow), updatedAt: Date.now() - 120000 } } };
+  return { opportunities: SEED_OPPORTUNITIES, drafts: { [bow.id]: { ...generateDraft(bow, senderName), updatedAt: Date.now() - 120000 } } };
 }
 
 const StoreContext = createContext<Store | null>(null);
 
 export function StoreProvider({ children }: { children: React.ReactNode }) {
-  const [state, setState] = useState<State>(seedState);
+  const { profile } = useAuth();
+  const senderName = profile?.name ?? "the SEEDA team";
+  const [state, setState] = useState<State>(() => seedState(senderName));
   // Supabase is lazily created once per provider instance rather than per call.
   const supabase = useRef(isSupabaseConfigured ? createClient() : null).current;
 
@@ -96,10 +99,10 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
             .then(({ error }) => error && console.warn("Signal Scout: failed to save draft.", error));
         }
       },
-      getDraft: (id) => state.drafts[id] ?? generateDraft(state.opportunities.find((o) => o.id === id)!),
+      getDraft: (id) => state.drafts[id] ?? generateDraft(state.opportunities.find((o) => o.id === id)!, senderName),
       reset: () => loadFromSupabase(),
     }),
-    [state, update, supabase, loadFromSupabase]
+    [state, update, supabase, loadFromSupabase, senderName]
   );
 
   return <StoreContext.Provider value={store}>{children}</StoreContext.Provider>;
