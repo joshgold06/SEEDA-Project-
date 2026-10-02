@@ -12,6 +12,8 @@ export default function LoginPage() {
   const router = useRouter();
 
   const [mode, setMode] = useState<"signin" | "signup">("signin");
+  const [firstName, setFirstName] = useState("");
+  const [lastName, setLastName] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState<string | null>(null);
@@ -29,7 +31,10 @@ export default function LoginPage() {
     e.preventDefault();
     setError(null);
     setBusy(true);
-    const { error } = mode === "signin" ? await signIn(email, password) : await signUp(email, password);
+    const { error } =
+      mode === "signin"
+        ? await signIn(email, password)
+        : await signUp(email, password, { firstName: firstName.trim(), lastName: lastName.trim() });
     setBusy(false);
     if (error) setError(error);
   }
@@ -67,6 +72,18 @@ export default function LoginPage() {
           </div>
 
           <form onSubmit={handlePasswordSubmit} className="mt-5 space-y-3 text-[12.5px] font-medium text-neutral-700">
+            {mode === "signup" && (
+              <div className="grid grid-cols-2 gap-3">
+                <label className="block">
+                  First name
+                  <input required autoComplete="given-name" value={firstName} onChange={(e) => setFirstName(e.target.value)} className={field} />
+                </label>
+                <label className="block">
+                  Last name
+                  <input required autoComplete="family-name" value={lastName} onChange={(e) => setLastName(e.target.value)} className={field} />
+                </label>
+              </div>
+            )}
             <label className="block">
               Email
               <input type="email" required value={email} onChange={(e) => setEmail(e.target.value)} className={field} />
