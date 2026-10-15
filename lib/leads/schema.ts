@@ -10,7 +10,7 @@ export const LeadSchema = z.object({
   sourceUrl: z.url("Source link is not a valid URL"),
   publisher: z.string().min(1, "Publisher is missing"),
   publishedAt: z.iso.datetime({ error: "Publish date is invalid" }),
-  region: z.enum(WESTERN_REGIONS, { error: "Not located in Alberta" }),
+  region: z.enum(WESTERN_REGIONS, { error: "Not located in Alberta, British Columbia or Saskatchewan" }),
   location: z.string().min(2),
   organization: z.string().min(1),
   organizationKnown: z.boolean(),

@@ -23,11 +23,11 @@ export default function ScanHome() {
     { icon: <TrendingUp className="size-5 text-warn" />, value: `+${formatMoney(value)}`, label: "Stated Value", note: "Combined value mentioned in signal headlines." },
   ];
   return <>
-    <TopBar left={<Breadcrumbs items={[{ label: "Alberta" }, { label: "Capital projects" }]} />} right={<></>} />
+    <TopBar left={<Breadcrumbs items={[{ label: "Western Canada" }, { label: "Capital projects" }]} />} right={<></>} />
     <section className="mx-auto max-w-[760px] px-8 pt-16 pb-16 text-center">
       <div className="mx-auto grid size-14 place-items-center rounded-full bg-neutral-100"><CircleHelp className="size-7 text-neutral-300" strokeWidth={1.5} /></div>
       <h1 className="mt-6 font-mono text-[22px] font-bold">Good morning{profile?.firstName ? `, ${profile.firstName}` : ""}</h1>
-      <p className="mx-auto mt-3 max-w-[400px] text-[14px] leading-relaxed text-neutral-500">{signals.length === 0 ? "No signals yet. Run a search below to pull in real projects from public news." : `${signals.length} project signal${signals.length === 1 ? "" : "s"} found in Alberta. Select one from the list to begin triaging.`}</p>
+      <p className="mx-auto mt-3 max-w-[400px] text-[14px] leading-relaxed text-neutral-500">{signals.length === 0 ? "No signals yet. Run a search below to pull in real projects from public news." : `${signals.length} project signal${signals.length === 1 ? "" : "s"} found across Alberta, BC and Saskatchewan. Select one from the list to begin triaging.`}</p>
       <div className="mt-10 grid gap-5 text-left sm:grid-cols-3">{stats.map((s) => <div key={s.label} className="rounded-lg border border-line bg-white p-5 shadow-sm">{s.icon}<div className="mt-3 font-mono text-[19px] font-bold">{s.value}</div><div className="font-mono text-[11px] uppercase tracking-wider text-neutral-600">{s.label}</div><p className="mt-2 text-[11px] leading-relaxed text-neutral-500">{s.note}</p></div>)}</div>
       <DiscoverPanel />
     </section>

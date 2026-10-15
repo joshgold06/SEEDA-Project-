@@ -6,9 +6,9 @@
 export const WESTERN_REGIONS = ["Alberta", "British Columbia", "Saskatchewan"] as const;
 export type WesternRegion = (typeof WESTERN_REGIONS)[number];
 
-// Regions leads are currently accepted from. Add "British Columbia" and
-// "Saskatchewan" here to widen the search; their place names are already defined below.
-export const ACTIVE_REGIONS: readonly WesternRegion[] = ["Alberta"];
+// Regions leads are currently accepted from. Remove one here to narrow the
+// search; place names for every region stay defined below.
+export const ACTIVE_REGIONS: readonly WesternRegion[] = ["Alberta", "British Columbia", "Saskatchewan"];
 
 export const REGION_ABBR: Record<WesternRegion, string> = {
   Alberta: "AB",
