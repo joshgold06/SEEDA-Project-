@@ -64,8 +64,9 @@ export function DiscoverPanel() {
     <section className="mt-10 rounded-lg border border-line bg-white p-5 text-left shadow-sm">
       <h2 className="label !text-neutral-600">Find new signals</h2>
       <p className="mt-2 text-[12.5px] leading-relaxed text-neutral-500">
-        Searches the last 30 days of public news for projects in Alberta, BC and Saskatchewan. Each headline is checked, scored
-        against EPCMst&apos;s keywords, and added to your Morning Scan only if it passes.
+        Searches recent public news (30 days, or 90 for contractor awards) for major projects in Alberta.
+        Each headline is checked, scored against EPCMst&apos;s keywords, and added to your Morning Scan only if it passes.
+        Open a lead to find the owner, the contractors and the people on the project.
       </p>
       <div className="mt-4 flex flex-wrap gap-2">
         {SEARCH_PRESETS.map((p) => (

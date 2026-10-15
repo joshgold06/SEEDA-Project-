@@ -6,6 +6,10 @@
 export const WESTERN_REGIONS = ["Alberta", "British Columbia", "Saskatchewan"] as const;
 export type WesternRegion = (typeof WESTERN_REGIONS)[number];
 
+// Regions leads are currently accepted from. Add "British Columbia" and
+// "Saskatchewan" here to widen the search; their place names are already defined below.
+export const ACTIVE_REGIONS: readonly WesternRegion[] = ["Alberta"];
+
 export const REGION_ABBR: Record<WesternRegion, string> = {
   Alberta: "AB",
   "British Columbia": "BC",
@@ -92,6 +96,7 @@ export const REGION_TERMS: Record<WesternRegion, { term: string; place?: string 
 };
 
 export const SIGNAL_TYPES = [
+  "Contract award",
   "Regulatory milestone",
   "Operational scarcity",
   "Energy transition",
@@ -101,6 +106,7 @@ export type SignalType = (typeof SIGNAL_TYPES)[number];
 
 // Points reflect how early the signal usually is relative to a public RFP.
 export const SIGNAL_POINTS: Record<SignalType, number> = {
+  "Contract award": 21, // a contractor is chosen, so there are named people to contact
   "Regulatory milestone": 22,
   "Operational scarcity": 20,
   "Energy transition": 18,
@@ -108,6 +114,7 @@ export const SIGNAL_POINTS: Record<SignalType, number> = {
 };
 
 export const SIGNAL_PHASE_TAG: Record<SignalType, string> = {
+  "Contract award": "Contract Award",
   "Regulatory milestone": "Regulatory",
   "Operational scarcity": "Operations",
   "Energy transition": "Energy Transition",
@@ -115,6 +122,11 @@ export const SIGNAL_PHASE_TAG: Record<SignalType, string> = {
 };
 
 export const SIGNAL_TERMS: Record<SignalType, string[]> = {
+  "Contract award": [
+    "awarded", "awards", "contract award", "contract", "selected", "selects",
+    "epc contract", "epcm contract", "engineering contract", "feed contract", "front-end engineering",
+    "lead contractor", "general contractor",
+  ],
   "Regulatory milestone": [
     "regulatory approval", "approval", "approve", "approves", "approved", "environmental assessment",
     "impact assessment", "permit", "licence", "license", "application", "filing", "filed",
@@ -133,7 +145,7 @@ export const SIGNAL_TERMS: Record<SignalType, string[]> = {
     "expansion", "phase 2", "phase two", "new plant", "new facility", "construction", "construct",
     "upgrade", "capital project", "final investment decision", "fid", "investment", "build", "project",
     "funding", "grant", "loan", "tender", "rfp", "request for proposal", "request for qualifications", "rfq",
-    "awarded", "greenlight", "greenlights", "green-lights", "sanction", "breaks ground", "groundbreaking",
+    "greenlight", "greenlights", "green-lights", "sanction", "breaks ground", "groundbreaking",
   ],
 };
 
@@ -183,6 +195,19 @@ export const ORG_INDUSTRY: Record<string, string> = {
   Teck: "Mining", Nutrien: "Mining", Cameco: "Mining", BHP: "Mining", Mosaic: "Mining",
   "E3 Lithium": "Mining", "Arizona Lithium": "Mining",
 };
+
+// Engineering and construction firms commonly named on major Western Canadian
+// projects. Only names that appear in a headline are ever used.
+export const KNOWN_CONTRACTORS: string[] = [
+  "Fluor", "JGC", "Bechtel", "KBR", "Worley", "Jacobs Engineering", "AtkinsRéalis", "AtkinsRealis", "SNC-Lavalin",
+  "Kiewit", "PCL", "Aecon", "Stantec", "WSP", "Wood Group", "Black & Veatch", "Hatch Ltd", "Ledcor",
+  "Graham Construction", "Bird Construction", "Chiyoda", "Technip", "McDermott", "Matrix Service",
+  "Associated Engineering", "Burns & McDonnell", "Zachry", "Primoris", "Mammoet", "Clark Builders",
+  "Pomerleau", "Surespan", "Tetra Tech", "Hyundai Engineering", "Samsung E&A", "CB&I",
+];
+
+// Owners that are governments or regulators rather than private companies.
+export const PUBLIC_OWNER_PATTERN = /\b(city of|town of|county of|municipal(?:ity)?|government of|province of|ministry|department of|federal|provincial|crown|regulator|commission|health authority|school (?:board|division))\b/i;
 
 export const KNOWN_ORGANIZATIONS: string[] = [
   "Cenovus", "Suncor", "Canadian Natural", "CNRL", "Imperial Oil", "Pembina", "TC Energy", "Enbridge",
