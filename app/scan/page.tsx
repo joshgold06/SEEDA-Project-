@@ -1,6 +1,7 @@
 "use client";
 
 import { CalendarCheck, CircleHelp, History, TrendingUp } from "lucide-react";
+import { DiscoverPanel } from "@/components/DiscoverPanel";
 import { Breadcrumbs, Button, TopBar } from "@/components/ui";
 import { RECENT_ACTIVITY } from "@/lib/data";
 import { useAuth } from "@/lib/AuthContext";
@@ -29,6 +30,7 @@ export default function ScanHome() {
       <h1 className="mt-6 font-mono text-[22px] font-bold">Good morning{profile?.firstName ? `, ${profile.firstName}` : ""}</h1>
       <p className="mx-auto mt-3 max-w-[400px] text-[14px] leading-relaxed text-neutral-500">We&apos;ve identified {signals.length} new project signals in the Alberta Water sector today. Select an opportunity from the list to begin triaging.</p>
       <div className="mt-10 grid gap-5 text-left sm:grid-cols-3">{stats.map((s) => <div key={s.label} className="rounded-lg border border-line bg-white p-5 shadow-sm">{s.icon}<div className="mt-3 font-mono text-[19px] font-bold">{s.value}</div><div className="font-mono text-[11px] uppercase tracking-wider text-neutral-600">{s.label}</div><p className="mt-2 text-[11px] leading-relaxed text-neutral-500">{s.note}</p></div>)}</div>
+      <DiscoverPanel />
       <div className="mt-12 text-left"><h2 className="label !text-neutral-600">Recent Activity</h2><ul className="mt-4 space-y-4">{RECENT_ACTIVITY.map((a) => <li key={a.text} className="flex gap-3"><span className={`mt-1.5 size-2 shrink-0 rounded-full ${a.active ? "bg-brand" : "bg-neutral-300"}`} /><div><p className="text-[12.5px] text-ink">{a.text}</p><p className="text-[11.5px] text-neutral-500">{a.when}</p></div></li>)}</ul></div>
     </section>
   </>;
