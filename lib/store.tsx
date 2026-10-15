@@ -1,7 +1,7 @@
 "use client";
 
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from "react";
-import { Opportunity, SEED_OPPORTUNITIES, Stage } from "./data";
+import { Opportunity, Stage } from "./data";
 import { Draft, generateDraft } from "./outreach";
 import { useAuth } from "./AuthContext";
 import { createClient, isSupabaseConfigured } from "./supabase/client";
@@ -13,6 +13,7 @@ interface State {
 }
 
 interface Store extends State {
+  loaded: boolean;
   get: (id: string) => Opportunity | undefined;
   update: (id: string, patch: Partial<Opportunity>) => void;
   setStage: (id: string, stage: Stage | null) => void;
@@ -22,22 +23,23 @@ interface Store extends State {
   reset: () => void;
 }
 
-function seedState(senderName: string): State {
-  const bow = SEED_OPPORTUNITIES.find((o) => o.id === "bow-river-wtp")!;
-  return { opportunities: SEED_OPPORTUNITIES, drafts: { [bow.id]: { ...generateDraft(bow, senderName), updatedAt: Date.now() - 120000 } } };
-}
+const EMPTY_STATE: State = { opportunities: [], drafts: {} };
 
 const StoreContext = createContext<Store | null>(null);
 
 export function StoreProvider({ children }: { children: React.ReactNode }) {
   const { profile } = useAuth();
   const senderName = profile?.name ?? "the SEEDA team";
-  const [state, setState] = useState<State>(() => seedState(senderName));
+  const [state, setState] = useState<State>(EMPTY_STATE);
+  const [loaded, setLoaded] = useState(false);
   // Supabase is lazily created once per provider instance rather than per call.
   const supabase = useRef(isSupabaseConfigured ? createClient() : null).current;
 
   const loadFromSupabase = useCallback(async () => {
-    if (!supabase) return;
+    if (!supabase) {
+      setLoaded(true);
+      return;
+    }
     try {
       const [{ data: oppRows, error: oppError }, { data: draftRows, error: draftError }] = await Promise.all([
         supabase.from("opportunities").select("*").order("score", { ascending: false }),
@@ -45,12 +47,13 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
       ]);
       if (oppError) throw oppError;
       if (draftError) throw draftError;
-      if (!oppRows || oppRows.length === 0) return; // migration/seed not run yet — keep local seed data
       const drafts: Record<string, Draft> = {};
       for (const row of draftRows ?? []) drafts[row.opportunity_id] = rowToDraft(row);
-      setState({ opportunities: oppRows.map(rowToOpportunity), drafts });
+      setState({ opportunities: (oppRows ?? []).map(rowToOpportunity), drafts });
     } catch (err) {
-      console.warn("Signal Scout: could not load from Supabase, using local seed data.", err);
+      console.warn("Signal Scout: could not load from Supabase.", err);
+    } finally {
+      setLoaded(true);
     }
   }, [supabase]);
 
@@ -78,6 +81,7 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
   const store = useMemo<Store>(
     () => ({
       ...state,
+      loaded,
       get: (id) => state.opportunities.find((o) => o.id === id),
       update,
       setStage: (id, stage) => update(id, { stage }),
@@ -102,7 +106,7 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
       getDraft: (id) => state.drafts[id] ?? generateDraft(state.opportunities.find((o) => o.id === id)!, senderName),
       reset: () => loadFromSupabase(),
     }),
-    [state, update, supabase, loadFromSupabase, senderName]
+    [state, loaded, update, supabase, loadFromSupabase, senderName]
   );
 
   return <StoreContext.Provider value={store}>{children}</StoreContext.Provider>;
