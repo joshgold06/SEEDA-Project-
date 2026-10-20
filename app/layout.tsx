@@ -9,8 +9,8 @@ import { AuthProvider } from "@/lib/AuthContext";
 import { StoreProvider } from "@/lib/store";
 
 export const metadata: Metadata = {
-  title: "Signal Scout",
-  description: "Spot, triage and pursue Alberta water and wastewater opportunities.",
+  title: "EPCMst",
+  description: "Spot, triage and pursue major capital projects across Western Canada.",
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {

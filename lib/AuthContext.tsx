@@ -1,10 +1,34 @@
 "use client";
 
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from "react";
-import type { Session, User } from "@supabase/supabase-js";
+import type { AuthError, Session, User } from "@supabase/supabase-js";
 import { createClient } from "./supabase/client";
 
-type AuthResult = { error: string | null };
+type AuthResult = { error: string | null; code?: string };
+type SignUpResult = AuthResult & { needsConfirmation: boolean; alreadyRegistered: boolean };
+
+// Supabase's raw messages ("Invalid login credentials", "email rate limit exceeded")
+// are terse and don't say what to do next, so translate the ones people actually hit.
+function describeAuthError(err: AuthError | null): AuthResult {
+  if (!err) return { error: null };
+  const code = err.code ?? "";
+  const text = err.message.toLowerCase();
+  if (code === "over_email_send_rate_limit" || text.includes("rate limit")) {
+    return { code: "rate_limit", error: "Too many emails have been sent recently and the limit has been reached. Wait a while and try again, or use Sign in with Google, which sends no email." };
+  }
+  if (code === "email_not_confirmed" || text.includes("not confirmed")) {
+    return { code: "email_not_confirmed", error: "This email hasn't been confirmed yet. Open the confirmation link we emailed you, then sign in." };
+  }
+  if (code === "invalid_credentials" || text.includes("invalid login")) {
+    return { code: "invalid_credentials", error: "Email or password is incorrect. If you first signed in with Google or a magic link, use that again; those accounts have no password." };
+  }
+  if (code === "user_already_exists" || code === "email_exists") {
+    return { code: "already_registered", error: "An account with this email already exists. Use Sign In instead." };
+  }
+  if (code === "weak_password") return { code, error: "That password is too weak. Use at least 6 characters, ideally a mix of letters and numbers." };
+  if (code === "signup_disabled") return { code, error: "New sign-ups are turned off for this app." };
+  return { code: code || undefined, error: err.message };
+}
 
 export interface Profile {
   /** Full display name; falls back to the email's local part when no name is known. */
@@ -28,8 +52,11 @@ interface AuthContextValue {
   session: Session | null;
   profile: Profile | null;
   loading: boolean;
-  signUp: (email: string, password: string, name?: PersonName) => Promise<AuthResult>;
+  /** Set when a sign-in link or Google redirect landed here but failed to log the user in. */
+  redirectError: string | null;
+  signUp: (email: string, password: string, name?: PersonName) => Promise<SignUpResult>;
   signIn: (email: string, password: string) => Promise<AuthResult>;
+  resendConfirmation: (email: string) => Promise<AuthResult>;
   signInWithMagicLink: (email: string) => Promise<AuthResult>;
   signInWithGoogle: () => Promise<AuthResult>;
   updateName: (name: PersonName) => Promise<AuthResult>;
@@ -74,11 +101,25 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const supabase = useRef(createClient()).current;
   const [session, setSession] = useState<Session | null>(null);
   const [loading, setLoading] = useState(true);
+  const [redirectError, setRedirectError] = useState<string | null>(null);
 
   useEffect(() => {
+    // A sign-in link only works in the browser that requested it (PKCE), and links
+    // expire. When one fails Supabase leaves no session, and the route guard then
+    // moves the user to /login with no explanation, so capture why before that happens.
+    const params = new URLSearchParams(`${window.location.search}&${window.location.hash.replace(/^#/, "")}`);
+    const urlError = params.get("error_description");
+    const arrivedWithCode = params.has("code");
     supabase.auth.getSession().then(({ data }) => {
       setSession(data.session);
       setLoading(false);
+      if (!data.session && (urlError || arrivedWithCode)) {
+        setRedirectError(
+          urlError && /expired|invalid/i.test(urlError)
+            ? "That sign-in link has expired or was already used. Request a new one."
+            : urlError ?? "That sign-in link couldn't be completed. Open it in the same browser where you requested it, or request a new one."
+        );
+      }
     });
     const { data: listener } = supabase.auth.onAuthStateChange((_event, newSession) => {
       setSession(newSession);
@@ -88,15 +129,24 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }, [supabase]);
 
   const signUp = useCallback(
-    async (email: string, password: string, name?: PersonName) => {
-      const { error } = await supabase.auth.signUp({
+    async (email: string, password: string, name?: PersonName): Promise<SignUpResult> => {
+      const { data, error } = await supabase.auth.signUp({
         email,
         password,
-        options: name
-          ? { data: { first_name: name.firstName, last_name: name.lastName, full_name: `${name.firstName} ${name.lastName}`.trim() } }
-          : undefined,
+        options: {
+          emailRedirectTo: `${window.location.origin}/scan`,
+          ...(name ? { data: { first_name: name.firstName, last_name: name.lastName, full_name: `${name.firstName} ${name.lastName}`.trim() } } : {}),
+        },
       });
-      return { error: error?.message ?? null };
+      // No session back means the project requires email confirmation first.
+      // For an address that is already registered, Supabase hides that and returns a
+      // user with no identities, so detect it here instead of showing false success.
+      const noSession = !error && !data.session;
+      return {
+        ...describeAuthError(error),
+        needsConfirmation: noSession,
+        alreadyRegistered: noSession && (data.user?.identities?.length ?? 1) === 0,
+      };
     },
     [supabase]
   );
@@ -104,7 +154,15 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const signIn = useCallback(
     async (email: string, password: string) => {
       const { error } = await supabase.auth.signInWithPassword({ email, password });
-      return { error: error?.message ?? null };
+      return describeAuthError(error);
+    },
+    [supabase]
+  );
+
+  const resendConfirmation = useCallback(
+    async (email: string) => {
+      const { error } = await supabase.auth.resend({ type: "signup", email, options: { emailRedirectTo: `${window.location.origin}/scan` } });
+      return describeAuthError(error);
     },
     [supabase]
   );
@@ -118,7 +176,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         email,
         options: { emailRedirectTo: `${window.location.origin}/scan` },
       });
-      return { error: error?.message ?? null };
+      return describeAuthError(error);
     },
     [supabase]
   );
@@ -128,7 +186,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       provider: "google",
       options: { redirectTo: `${window.location.origin}/scan` },
     });
-    return { error: error?.message ?? null };
+    return describeAuthError(error);
   }, [supabase]);
 
   const updateName = useCallback(
@@ -152,14 +210,16 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       session,
       profile: deriveProfile(session?.user ?? null),
       loading,
+      redirectError,
       signUp,
       signIn,
+      resendConfirmation,
       signInWithMagicLink,
       signInWithGoogle,
       updateName,
       signOut,
     }),
-    [session, loading, signUp, signIn, signInWithMagicLink, signInWithGoogle, updateName, signOut]
+    [session, loading, redirectError, signUp, signIn, resendConfirmation, signInWithMagicLink, signInWithGoogle, updateName, signOut]
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
