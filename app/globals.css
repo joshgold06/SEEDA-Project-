@@ -6,6 +6,7 @@
   /* EPCMst logo palette: bright blue mark, navy lettering. */
   --color-brand: #0e75bb;
   --color-brand-dark: #2e5483;
+  --color-brand-hover: #2e5483;
   --color-brand-soft: #eaf3fa;
   --color-brand-line: #bcd9ee;
   --color-navy: #2e5483;
@@ -15,19 +16,85 @@
   --color-line: #e5e7eb;
   --color-muted: #6b7280;
   --color-warn: #f97316;
+  /* Semantic surfaces. These flip in dark mode, unlike plain white or ink. */
+  --color-surface: #ffffff;
+  --color-action: #111111;
+  --color-action-hover: #262626;
+}
+
+/* Plain custom properties (not Tailwind tokens): used by the logo and the map. */
+:root {
+  --logo-navy: #2e5483;
+  --logo-blue: #0e75bb;
+  --map-water: #f1f6fb;
+  --map-land: #e3ecf6;
+  --map-land-active: #d3e3f3;
+  --map-border: #aebfd6;
+  --map-label: #6b7f99;
+}
+
+/* Dark theme: every colour the app uses is a variable, so swapping the values
+   here restyles every screen. The neutral scale is inverted on purpose. */
+html[data-theme="dark"] {
+  color-scheme: dark;
+  --color-canvas: #0c1522;
+  --color-surface: #152134;
+  --color-ink: #e8edf5;
+  --color-line: #27384f;
+  --color-muted: #92a3ba;
+  --color-action: #2d82c6;
+  --color-action-hover: #4797da;
+  --color-brand: #2d8bd0;
+  --color-brand-dark: #8ec8f2;
+  --color-brand-hover: #4aa0e0;
+  --color-brand-soft: #12304d;
+  --color-brand-line: #1f4f7c;
+  --color-rail: #08111d;
+  --color-warn: #fb923c;
+
+  --color-neutral-50: #1a283d;
+  --color-neutral-100: #20314a;
+  --color-neutral-200: #2a3d58;
+  --color-neutral-300: #3a4f6c;
+  --color-neutral-400: #6f829c;
+  --color-neutral-500: #92a3ba;
+  --color-neutral-600: #adbad0;
+  --color-neutral-700: #c7d1e1;
+  --color-neutral-800: #dbe3ef;
+  --color-neutral-900: #eef2f8;
+
+  --color-red-50: #3a1d22;
+  --color-red-200: #7a3a42;
+  --color-red-400: #f87171;
+  --color-red-500: #f87171;
+  --color-red-600: #fb7185;
+  --color-red-700: #fca5a5;
+
+  --logo-navy: #a9c1e4;
+  --logo-blue: #3b9be3;
+  --map-water: #0f1b2c;
+  --map-land: #1a2b42;
+  --map-land-active: #223954;
+  --map-border: #37506e;
+  --map-label: #8ba0bd;
 }
 
 html, body { background: var(--color-canvas); color: var(--color-ink); }
 body { min-width: 320px; }
-.label { @apply font-mono text-[11px] uppercase tracking-[0.12em] text-muted; }
+.label { @apply text-[11px] font-semibold uppercase tracking-[0.06em] text-muted; }
 
 @keyframes rise-in {
   from { opacity: 0; transform: translateY(6px); }
   to { opacity: 1; transform: none; }
 }
 .rise-in { animation: rise-in 0.35s ease-out both; }
+@keyframes fade-in {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+.fade-in { animation: fade-in 0.4s ease-out both; }
 @media (prefers-reduced-motion: reduce) {
-  .rise-in { animation: none; }
+  .rise-in, .fade-in { animation: none; }
 }
 
 @media (max-width: 800px) {

@@ -40,9 +40,8 @@ export function DiscoverPanel({ locked = false }: { locked?: boolean }) {
   const busy = running !== null || locked;
 
   return (
-    <section className="mt-10 rounded-lg border border-line bg-white p-5 text-left shadow-sm">
-      <h2 className="label !text-neutral-600">Find new signals</h2>
-      <p className="mt-2 text-[12.5px] leading-relaxed text-neutral-500">
+    <div className="text-left">
+      <p className="text-[12.5px] leading-relaxed text-neutral-500">
         Searches recent public news (30 days, or 90 for contractor awards) for major projects in Alberta, BC and Saskatchewan.
         Each headline is checked, scored against EPCMst&apos;s keywords, and added to your Morning Scan only if it passes.
         Open a lead to find the owner, the contractors and the people on the project.
@@ -53,7 +52,7 @@ export function DiscoverPanel({ locked = false }: { locked?: boolean }) {
             key={p.id}
             onClick={() => run(p.id, { presetId: p.id })}
             disabled={busy}
-            className="inline-flex h-[28px] items-center gap-1.5 rounded-full border border-line bg-white px-3 text-[12px] font-medium text-ink transition-colors hover:bg-neutral-50 disabled:opacity-50"
+            className="inline-flex h-[28px] items-center gap-1.5 rounded-full border border-line bg-surface px-3 text-[12px] font-medium text-ink transition-colors hover:bg-neutral-50 disabled:opacity-50"
           >
             {running === p.id && <Loader2 className="size-3 animate-spin" />}
             {p.label}
@@ -80,7 +79,7 @@ export function DiscoverPanel({ locked = false }: { locked?: boolean }) {
         <button
           type="submit"
           disabled={busy || custom.trim().length < 3}
-          className="inline-flex h-[32px] items-center gap-1.5 rounded bg-ink px-4 text-[12.5px] font-medium text-white transition-colors hover:bg-neutral-800 disabled:opacity-50"
+          className="inline-flex h-[32px] items-center gap-1.5 rounded bg-action px-4 text-[12.5px] font-medium text-white transition-colors hover:bg-action-hover disabled:opacity-50"
         >
           {running === "custom" && <Loader2 className="size-3 animate-spin" />}
           Search
@@ -92,6 +91,6 @@ export function DiscoverPanel({ locked = false }: { locked?: boolean }) {
           {message.detail && <span className="block text-[11.5px] text-neutral-500">{message.detail}</span>}
         </p>
       )}
-    </section>
+    </div>
   );
 }

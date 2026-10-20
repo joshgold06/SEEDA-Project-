@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { ArrowDown, ArrowUp, Minus, RotateCcw, SlidersHorizontal } from "lucide-react";
+import { ArrowDown, ArrowUp, Minus, RotateCcw } from "lucide-react";
 import { adjustedScore, DEFAULT_WEIGHTS, FACTORS, isDefault, scoreParts, WEIGHT_PRESETS } from "@/lib/scoring";
 import { useStore } from "@/lib/store";
 import { useWeights } from "@/lib/weights";
@@ -17,22 +17,21 @@ export function TunePanel() {
   const ranked = [...scorable].sort((a, b) => scoreOf(b) - scoreOf(a)).slice(0, 5);
 
   return (
-    <section className="mt-6 rounded-lg border border-line bg-white p-5 shadow-sm">
-      <div className="flex flex-wrap items-center justify-between gap-2">
-        <h2 className="label flex items-center gap-2 !text-neutral-600"><SlidersHorizontal className="size-3.5 text-brand" />Tune the ranking</h2>
+    <div>
+      <div className="flex items-start justify-between gap-3">
+        <p className="text-[12.5px] leading-relaxed text-neutral-500">
+          Decide what matters most to you. Drag a slider and the lead list re-ranks instantly. Your choices are remembered on this device.
+        </p>
         {!isDefault(weights) && (
-          <button onClick={reset} className="inline-flex items-center gap-1 text-[11.5px] font-medium text-brand-dark hover:underline"><RotateCcw className="size-3" />Reset</button>
+          <button onClick={reset} className="inline-flex shrink-0 items-center gap-1 text-[11.5px] font-medium text-brand-dark hover:underline"><RotateCcw className="size-3" />Reset</button>
         )}
       </div>
-      <p className="mt-2 text-[12.5px] leading-relaxed text-neutral-500">
-        Decide what matters most to you. Drag a slider and the lead list re-ranks instantly. Your choices are remembered on this device.
-      </p>
 
       <div className="mt-3 flex flex-wrap gap-2">
         {WEIGHT_PRESETS.map((p) => {
           const active = sameWeights(weights, p.weights);
           return (
-            <button key={p.id} onClick={() => setWeights(p.weights)} className={`h-[26px] rounded-full border px-3 text-[11.5px] font-medium transition-colors ${active ? "border-brand bg-brand text-white" : "border-line bg-white text-ink hover:bg-neutral-50"}`}>
+            <button key={p.id} onClick={() => setWeights(p.weights)} className={`h-[26px] rounded-full border px-3 text-[11.5px] font-medium transition-colors ${active ? "border-brand bg-brand text-white" : "border-line bg-surface text-ink hover:bg-neutral-50"}`}>
               {p.label}
             </button>
           );
@@ -85,6 +84,13 @@ export function TunePanel() {
           </ol>
         )}
       </div>
-    </section>
+    </div>
   );
+}
+
+/** One-line description of the current weights, shown while the panel is folded away. */
+export function useTuneSummary() {
+  const { weights } = useWeights();
+  const preset = WEIGHT_PRESETS.find((p) => sameWeights(weights, p.weights));
+  return preset ? `${preset.label} weights` : "Custom weights";
 }

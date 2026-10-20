@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import { EpcmstLogo } from "@/components/EpcmstLogo";
 import { useAuth } from "@/lib/AuthContext";
 
-const field = "mt-1 h-9 w-full rounded border border-line bg-white px-3 text-[13px] outline-none focus:border-neutral-500";
+const field = "mt-1 h-9 w-full rounded border border-line bg-surface px-3 text-[13px] outline-none focus:border-neutral-500";
 
 export default function LoginPage() {
   const { user, loading, redirectError, signIn, signUp, resendConfirmation, signInWithMagicLink, signInWithGoogle } = useAuth();
@@ -108,12 +108,12 @@ export default function LoginPage() {
           <p className="mt-3 text-[13px] text-muted">Sign in to continue to your pipeline.</p>
         </div>
 
-        <div className="mt-8 rounded-lg border border-line bg-white p-6 shadow-sm">
+        <div className="mt-8 rounded-lg border border-line bg-surface p-6 shadow-sm">
           <div className="flex rounded-md border border-line p-0.5 text-[12.5px] font-medium">
-            <button onClick={() => switchMode("signin")} className={`flex-1 rounded py-1.5 transition-colors ${mode === "signin" ? "bg-ink text-white" : "text-neutral-600 hover:text-ink"}`}>
+            <button onClick={() => switchMode("signin")} className={`flex-1 rounded py-1.5 transition-colors ${mode === "signin" ? "bg-action text-white" : "text-neutral-600 hover:text-ink"}`}>
               Sign In
             </button>
-            <button onClick={() => switchMode("signup")} className={`flex-1 rounded py-1.5 transition-colors ${mode === "signup" ? "bg-ink text-white" : "text-neutral-600 hover:text-ink"}`}>
+            <button onClick={() => switchMode("signup")} className={`flex-1 rounded py-1.5 transition-colors ${mode === "signup" ? "bg-action text-white" : "text-neutral-600 hover:text-ink"}`}>
               Sign Up
             </button>
           </div>
@@ -146,7 +146,7 @@ export default function LoginPage() {
                 {resending ? "Sending…" : "Resend confirmation email"}
               </button>
             )}
-            <button type="submit" disabled={busy} className="h-9 w-full rounded bg-ink text-[12.5px] font-semibold text-white transition-colors hover:bg-neutral-800 disabled:opacity-50">
+            <button type="submit" disabled={busy} className="h-9 w-full rounded bg-action text-[12.5px] font-semibold text-white transition-colors hover:bg-action-hover disabled:opacity-50">
               {busy ? "Please wait…" : mode === "signin" ? "Sign In" : "Create Account"}
             </button>
           </form>
@@ -173,7 +173,7 @@ export default function LoginPage() {
               <button
                 onClick={handleMagicLink}
                 disabled={magicBusy}
-                className="h-9 w-full rounded border border-line bg-white text-[12.5px] font-medium text-ink transition-colors hover:bg-neutral-50 disabled:opacity-50"
+                className="h-9 w-full rounded border border-line bg-surface text-[12.5px] font-medium text-ink transition-colors hover:bg-neutral-50 disabled:opacity-50"
               >
                 {magicBusy ? "Sending…" : "Send Magic Link"}
               </button>
@@ -182,7 +182,7 @@ export default function LoginPage() {
 
           <button
             onClick={() => signInWithGoogle()}
-            className="mt-3 h-9 w-full rounded border border-line bg-white text-[12.5px] font-medium text-ink transition-colors hover:bg-neutral-50"
+            className="mt-3 h-9 w-full rounded border border-line bg-surface text-[12.5px] font-medium text-ink transition-colors hover:bg-neutral-50"
           >
             Sign in with Google
           </button>

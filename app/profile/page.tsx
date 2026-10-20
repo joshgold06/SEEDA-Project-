@@ -7,7 +7,7 @@ import { Avatar, Breadcrumbs, TopBar } from "@/components/ui";
 import { useAuth } from "@/lib/AuthContext";
 
 const PROVIDER_LABEL: Record<string, string> = { email: "Email / magic link", google: "Google" };
-const field = "mt-1 h-9 w-full rounded border border-line bg-white px-3 text-[13px] outline-none focus:border-neutral-500";
+const field = "mt-1 h-9 w-full rounded border border-line bg-surface px-3 text-[13px] outline-none focus:border-neutral-500";
 
 export default function ProfilePage() {
   const { user, profile, signOut, updateName } = useAuth();
@@ -47,10 +47,10 @@ export default function ProfilePage() {
   }
 
   return (
-    <>
+    <main className="min-w-0 flex-1">
       <TopBar left={<Breadcrumbs items={[{ label: "Profile" }]} />} />
       <div className="mx-auto max-w-[520px] px-8 py-14">
-        <div className="rounded-lg border border-line bg-white p-7 shadow-sm">
+        <div className="rounded-lg border border-line bg-surface p-7 shadow-sm">
           <div className="flex items-center gap-4">
             <Avatar initials={profile.initials} src={profile.avatarUrl} title={profile.name} size={56} />
             <div className="min-w-0">
@@ -75,7 +75,7 @@ export default function ProfilePage() {
               <button
                 type="submit"
                 disabled={!dirty || saving}
-                className="h-8 rounded bg-ink px-4 text-[12.5px] font-medium text-white transition-colors hover:bg-neutral-800 disabled:opacity-40"
+                className="h-8 rounded bg-action px-4 text-[12.5px] font-medium text-white transition-colors hover:bg-action-hover disabled:opacity-40"
               >
                 {saving ? "Saving…" : "Save name"}
               </button>
@@ -102,13 +102,13 @@ export default function ProfilePage() {
 
           <button
             onClick={handleSignOut}
-            className="mt-7 flex h-9 w-full items-center justify-center gap-2 rounded border border-line bg-white text-[12.5px] font-medium text-ink transition-colors hover:border-red-200 hover:bg-red-50 hover:text-red-700"
+            className="mt-7 flex h-9 w-full items-center justify-center gap-2 rounded border border-line bg-surface text-[12.5px] font-medium text-ink transition-colors hover:border-red-200 hover:bg-red-50 hover:text-red-700"
           >
             <LogOut className="size-3.5" />
             Sign Out
           </button>
         </div>
       </div>
-    </>
+    </main>
   );
 }

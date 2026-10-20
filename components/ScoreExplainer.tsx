@@ -2,6 +2,7 @@
 
 import { useMemo, useState } from "react";
 import { GitCompare } from "lucide-react";
+import { Disclosure } from "./Disclosure";
 import type { Opportunity } from "@/lib/data";
 import { adjustedParts, compareLeads, FACTORS, isDefault, scoreParts } from "@/lib/scoring";
 import { useStore } from "@/lib/store";
@@ -25,8 +26,8 @@ export function ScoreExplainer({ opp }: { opp: Opportunity }) {
 
   if (!parts) {
     return (
-      <section className="rounded-md border border-line bg-white p-5">
-        <h2 className="font-mono text-[11px] font-semibold uppercase tracking-[0.12em] text-neutral-600">Score breakdown</h2>
+      <section className="rounded-xl border border-line bg-surface px-5 py-4">
+        <h2 className="text-[13.5px] font-semibold">Score breakdown</h2>
         <p className="mt-3 text-[12.5px] leading-relaxed text-neutral-500">This lead was saved before score breakdowns were recorded. Run a search from the Morning Scan home page to refresh it.</p>
       </section>
     );
@@ -36,15 +37,20 @@ export function ScoreExplainer({ opp }: { opp: Opportunity }) {
   const positive = parts.filter((p) => p.points > 0);
   const positiveSum = positive.reduce((s, p) => s + p.points, 0) || 1;
 
-  return (
-    <section className="rounded-md border border-line bg-white p-5">
-      <div className="flex items-baseline justify-between">
-        <h2 className="font-mono text-[11px] font-semibold uppercase tracking-[0.12em] text-neutral-600">Score breakdown</h2>
-        <span className="font-mono text-[20px] font-bold text-brand-dark">{total}<span className="text-[12px] font-medium text-neutral-400"> / 100</span></span>
-      </div>
-      {customised && <p className="mt-1 text-[11.5px] text-brand-dark">Using your custom weights from the Morning Scan home page.</p>}
+  const summary = (
+    <span className="inline-flex items-center gap-2.5">
+      <span className="flex h-1.5 w-20 overflow-hidden rounded-full bg-neutral-100" aria-hidden>
+        {positive.map((p) => <span key={p.key} className={FACTORS.find((f) => f.key === p.key)!.bar} style={{ width: `${(p.points / positiveSum) * 100}%` }} />)}
+      </span>
+      <span className="font-mono text-[12px] font-semibold text-brand-dark">{total} / 100</span>
+    </span>
+  );
 
-      <div className="mt-4 flex h-3 overflow-hidden rounded-full bg-neutral-100" role="img" aria-label="Share of the score from each factor">
+  return (
+    <Disclosure id="score-explainer" title="Score breakdown" summary={summary}>
+      {customised && <p className="mb-3 text-[11.5px] text-brand-dark">Using your custom weights from the Morning Scan home page.</p>}
+
+      <div className="flex h-3 overflow-hidden rounded-full bg-neutral-100" role="img" aria-label="Share of the score from each factor">
         {positive.map((p) => {
           const info = FACTORS.find((f) => f.key === p.key)!;
           return <div key={p.key} className={`${info.bar} transition-all duration-500`} style={{ width: `${(p.points / positiveSum) * 100}%` }} title={`${info.label}: ${Math.round(p.points * 10) / 10}`} />;
@@ -75,7 +81,7 @@ export function ScoreExplainer({ opp }: { opp: Opportunity }) {
           <GitCompare className="size-3.5 text-brand" />
           Why does this score differently from…
         </label>
-        <select value={otherId} onChange={(e) => setOtherId(e.target.value)} className="mt-2 h-8 w-full rounded border border-line bg-white px-2 text-[12px]">
+        <select value={otherId} onChange={(e) => setOtherId(e.target.value)} className="mt-2 h-8 w-full rounded border border-line bg-surface px-2 text-[12px]">
           <option value="">Pick another lead to compare</option>
           {candidates.map((o) => (
             <option key={o.id} value={o.id}>{`${scoreOf(o)} · ${o.title.length > 62 ? `${o.title.slice(0, 61)}…` : o.title}`}</option>
@@ -114,6 +120,6 @@ export function ScoreExplainer({ opp }: { opp: Opportunity }) {
           </div>
         )}
       </div>
-    </section>
+    </Disclosure>
   );
 }

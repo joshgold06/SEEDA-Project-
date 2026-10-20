@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import Script from "next/script";
 import "@fontsource-variable/inter";
 import "@fontsource/jetbrains-mono/400.css";
 import "@fontsource/jetbrains-mono/500.css";
@@ -8,6 +9,8 @@ import { AppShell } from "@/components/AppShell";
 import { ToastProvider } from "@/components/Toast";
 import { AuthProvider } from "@/lib/AuthContext";
 import { StoreProvider } from "@/lib/store";
+import { ThemeProvider } from "@/lib/theme";
+import { THEME_INIT_SCRIPT } from "@/lib/themeScript";
 import { WeightsProvider } from "@/lib/weights";
 
 export const metadata: Metadata = {
@@ -17,17 +20,21 @@ export const metadata: Metadata = {
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
-    <html lang="en">
+    // suppressHydrationWarning: the init script sets data-theme before React hydrates.
+    <html lang="en" suppressHydrationWarning>
       <body className="font-sans antialiased">
-        <AuthProvider>
-          <StoreProvider>
-            <WeightsProvider>
-              <ToastProvider>
-                <AppShell>{children}</AppShell>
-              </ToastProvider>
-            </WeightsProvider>
-          </StoreProvider>
-        </AuthProvider>
+        <Script id="theme-init" strategy="beforeInteractive" dangerouslySetInnerHTML={{ __html: THEME_INIT_SCRIPT }} />
+        <ThemeProvider>
+          <AuthProvider>
+            <StoreProvider>
+              <WeightsProvider>
+                <ToastProvider>
+                  <AppShell>{children}</AppShell>
+                </ToastProvider>
+              </WeightsProvider>
+            </StoreProvider>
+          </AuthProvider>
+        </ThemeProvider>
       </body>
     </html>
   );

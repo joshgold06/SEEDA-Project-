@@ -1,10 +1,11 @@
 "use client";
 
-import { Loader2, RefreshCw } from "lucide-react";
+import { Loader2, RefreshCw, Search, SlidersHorizontal } from "lucide-react";
 import { CountUp } from "@/components/CountUp";
+import { Disclosure } from "@/components/Disclosure";
 import { DiscoverPanel } from "@/components/DiscoverPanel";
 import { EpcmstMark } from "@/components/EpcmstLogo";
-import { TunePanel } from "@/components/TunePanel";
+import { TunePanel, useTuneSummary } from "@/components/TunePanel";
 import { Breadcrumbs, TopBar } from "@/components/ui";
 import { useAuth } from "@/lib/AuthContext";
 import { getPreviousVisit, isNewSince } from "@/lib/lastVisit";
@@ -19,6 +20,7 @@ export default function ScanHome() {
   const { opportunities, loaded } = useStore();
   const { profile, user } = useAuth();
   const { scoreOf } = useWeights();
+  const tuneSummary = useTuneSummary();
 
   const signals = opportunities.filter((o) => o.inScan && !o.dismissed);
   const refresh = useAutoRefresh(signals.length);
@@ -59,15 +61,14 @@ export default function ScanHome() {
     <>
       <TopBar left={<Breadcrumbs items={[{ label: "Western Canada" }, { label: "Capital projects" }]} />} right={<></>} />
       <div className="mx-auto w-full max-w-[920px] px-8 py-8">
-        <section className="rise-in overflow-hidden rounded-2xl bg-linear-to-br from-rail via-navy to-brand p-8 text-white shadow-md">
-          <div className="flex items-center gap-3">
-            <span className="grid size-10 place-items-center rounded-lg bg-white"><EpcmstMark className="size-7" /></span>
-            <span className="font-mono text-[11px] uppercase tracking-[0.2em] text-white/70">Morning Scan</span>
+        <section className="rise-in overflow-hidden rounded-2xl bg-linear-to-br from-rail via-navy to-brand p-6 text-white shadow-md">
+          <div className="flex items-center gap-3.5">
+            <span className="grid size-10 shrink-0 place-items-center rounded-lg bg-surface"><EpcmstMark className="size-7" /></span>
+            <h1 className="text-[24px] leading-tight font-bold">Good morning{profile?.firstName ? `, ${profile.firstName}` : ""}</h1>
           </div>
-          <h1 className="mt-5 text-[30px] leading-tight font-bold">Good morning{profile?.firstName ? `, ${profile.firstName}` : ""}</h1>
-          <p className="mt-2 max-w-[560px] text-[14px] leading-relaxed text-white/80">{summary}</p>
+          <p className="mt-3 max-w-[560px] text-[13.5px] leading-relaxed text-white/75">{summary}</p>
 
-          <div className="mt-5 min-h-[34px]" aria-live="polite">
+          <div className="mt-4 min-h-[30px]" aria-live="polite">
             {refresh.running ? (
               <div className="max-w-[420px]">
                 <div className="flex items-center gap-2 text-[12px] text-white/85">
@@ -76,7 +77,7 @@ export default function ScanHome() {
                   {refresh.added > 0 && <span className="rounded bg-white/15 px-1.5 py-0.5 font-mono text-[10.5px]">+{refresh.added} new</span>}
                 </div>
                 <div className="mt-2 h-1.5 overflow-hidden rounded-full bg-white/15">
-                  <div className="h-full rounded-full bg-white transition-all duration-500" style={{ width: `${(refresh.done / refresh.total) * 100}%` }} />
+                  <div className="h-full rounded-full bg-surface transition-all duration-500" style={{ width: `${(refresh.done / refresh.total) * 100}%` }} />
                 </div>
               </div>
             ) : (
@@ -93,13 +94,13 @@ export default function ScanHome() {
             )}
           </div>
 
-          <div className="mt-6 grid gap-3 sm:grid-cols-3">
+          <div className="mt-5 grid gap-3 sm:grid-cols-3">
             {stats.map((s) => (
               <div key={s.label} className="rounded-xl bg-white/10 p-4 backdrop-blur-sm">
                 <div className="font-mono text-[11px] uppercase tracking-wider text-white/65">{s.label}</div>
                 {loaded ? (
                   <>
-                    <div className="mt-1.5 font-mono text-[24px] leading-none font-bold">{s.value}</div>
+                    <div className="mt-1.5 font-mono text-[22px] leading-none font-bold">{s.value}</div>
                     <p className="mt-2 truncate text-[11.5px] text-white/65">{s.note}</p>
                   </>
                 ) : (
@@ -110,8 +111,14 @@ export default function ScanHome() {
           </div>
         </section>
 
-        <TunePanel />
-        <DiscoverPanel locked={refresh.running} />
+        <div className="mt-5 space-y-3">
+          <Disclosure id="home-tune" title="Tune the ranking" icon={<SlidersHorizontal className="size-4" />} summary={tuneSummary}>
+            <TunePanel />
+          </Disclosure>
+          <Disclosure id="home-search" title="Find new signals" icon={<Search className="size-4" />} summary="Run a search or type your own">
+            <DiscoverPanel locked={refresh.running} />
+          </Disclosure>
+        </div>
       </div>
     </>
   );
