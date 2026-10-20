@@ -5,8 +5,10 @@ import "@fontsource/jetbrains-mono/500.css";
 import "@fontsource/jetbrains-mono/700.css";
 import "./globals.css";
 import { AppShell } from "@/components/AppShell";
+import { ToastProvider } from "@/components/Toast";
 import { AuthProvider } from "@/lib/AuthContext";
 import { StoreProvider } from "@/lib/store";
+import { WeightsProvider } from "@/lib/weights";
 
 export const metadata: Metadata = {
   title: "EPCMst",
@@ -19,7 +21,11 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
       <body className="font-sans antialiased">
         <AuthProvider>
           <StoreProvider>
-            <AppShell>{children}</AppShell>
+            <WeightsProvider>
+              <ToastProvider>
+                <AppShell>{children}</AppShell>
+              </ToastProvider>
+            </WeightsProvider>
           </StoreProvider>
         </AuthProvider>
       </body>

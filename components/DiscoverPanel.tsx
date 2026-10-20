@@ -3,18 +3,9 @@
 import { useState } from "react";
 import { Loader2, Search } from "lucide-react";
 import { useAuth } from "@/lib/AuthContext";
+import { runDiscover, type DiscoverResult } from "@/lib/leads/client";
 import { SEARCH_PRESETS } from "@/lib/leads/presets";
 import { useStore } from "@/lib/store";
-
-interface DiscoverResult {
-  found: number;
-  added: number;
-  alreadySaved: number;
-  duplicatesMerged: number;
-  lowRelevance: number;
-  rejected: number;
-  rejectionReasons: Record<string, number>;
-}
 
 function summarize(r: DiscoverResult): string {
   const parts = [`${r.added} new lead${r.added === 1 ? "" : "s"} added`];
@@ -25,7 +16,7 @@ function summarize(r: DiscoverResult): string {
   return `Read ${r.found} headlines: ${parts.join(", ")}.`;
 }
 
-export function DiscoverPanel() {
+export function DiscoverPanel({ locked = false }: { locked?: boolean }) {
   const { session, profile } = useAuth();
   const { reset } = useStore();
   const [custom, setCustom] = useState("");
@@ -36,29 +27,17 @@ export function DiscoverPanel() {
     if (!session) return;
     setRunning(key);
     setMessage(null);
-    try {
-      const res = await fetch("/api/discover", {
-        method: "POST",
-        headers: { "Content-Type": "application/json", Authorization: `Bearer ${session.access_token}` },
-        body: JSON.stringify({ ...payload, assignee: profile?.initials }),
-      });
-      const data = await res.json();
-      if (!res.ok) {
-        setMessage({ tone: "error", text: data.error ?? "The search failed." });
-      } else {
-        const result = data as DiscoverResult;
-        const top = Object.entries(result.rejectionReasons).sort((a, b) => b[1] - a[1])[0];
-        setMessage({ tone: "ok", text: summarize(result), detail: top ? `Most common rejection: ${top[0]} (${top[1]}).` : undefined });
-        reset();
-      }
-    } catch {
-      setMessage({ tone: "error", text: "Couldn't reach the server. Check your connection and try again." });
-    } finally {
-      setRunning(null);
+    const outcome = await runDiscover(session.access_token, payload, profile?.initials);
+    if (!outcome.ok) {
+      setMessage({ tone: "error", text: outcome.error });
+    } else {
+      const top = Object.entries(outcome.result.rejectionReasons).sort((x, y) => y[1] - x[1])[0];
+      setMessage({ tone: "ok", text: summarize(outcome.result), detail: top ? `Most common rejection: ${top[0]} (${top[1]}).` : undefined });
+      reset();
     }
+    setRunning(null);
   }
-
-  const busy = running !== null;
+  const busy = running !== null || locked;
 
   return (
     <section className="mt-10 rounded-lg border border-line bg-white p-5 text-left shadow-sm">

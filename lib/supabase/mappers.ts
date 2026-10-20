@@ -40,6 +40,7 @@ export type OpportunityRow = {
   pipeline_tags: string[] | null;
   assignee: string;
   contact_role: string | null;
+  created_at?: string;
 };
 
 export type DraftRow = {
@@ -87,6 +88,7 @@ export function rowToOpportunity(row: OpportunityRow): Opportunity {
     pipelineTags: row.pipeline_tags ?? undefined,
     assignee: row.assignee,
     contactRole: row.contact_role ?? undefined,
+    createdAt: row.created_at,
   };
 }
 

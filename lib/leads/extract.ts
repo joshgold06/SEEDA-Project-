@@ -1,4 +1,4 @@
-import type { Opportunity } from "../data";
+import type { FactorKey, Opportunity } from "../data";
 import { CONTRACTOR_PREFIX } from "./people";
 import type { NewsItem } from "./googleNews";
 import type { Lead } from "./schema";
@@ -102,40 +102,43 @@ export function buildCandidate(item: NewsItem, now: Date = new Date()): Record<s
   const noisy = found(title, NOISE_TERMS).length > 0;
   const ageDays = Math.max(0, (now.getTime() - new Date(item.publishedAt).getTime()) / DAY_MS);
 
-  const reasons: { text: string; kind: "match" | "constraint" }[] = [];
+  const reasons: { text: string; kind: "match" | "constraint"; factor?: FactorKey; points?: number }[] = [];
   let score = 0;
 
   if (region) {
     score += 20;
-    reasons.push({ text: `Located in ${place ? `${place}, ` : ""}${region}${viaPublisher ? " (inferred from the local publisher)" : ""}`, kind: "match" });
+    reasons.push({ text: `Located in ${place ? `${place}, ` : ""}${region}${viaPublisher ? " (inferred from the local publisher)" : ""}`, kind: "match", factor: "region", points: 20 });
   }
   if (signalType) {
-    score += SIGNAL_POINTS[signalType] + (signalHits.length > 1 ? 4 : 0);
-    reasons.push({ text: `${signalType} signal: ${signalHits.find((s) => s.type === signalType)!.hits.slice(0, 3).join(", ")}`, kind: "match" });
+    const signalPoints = SIGNAL_POINTS[signalType] + (signalHits.length > 1 ? 4 : 0);
+    score += signalPoints;
+    reasons.push({ text: `${signalType} signal: ${signalHits.find((s) => s.type === signalType)!.hits.slice(0, 3).join(", ")}`, kind: "match", factor: "signal", points: signalPoints });
   }
   if (keywords.length) {
-    score += Math.min(20, keywords.length * 5);
-    reasons.push({ text: `Matches EPCMst keywords: ${keywords.slice(0, 4).join(", ")}`, kind: "match" });
+    const keywordPoints = Math.min(20, keywords.length * 5);
+    score += keywordPoints;
+    reasons.push({ text: `Matches EPCMst keywords: ${keywords.slice(0, 4).join(", ")}`, kind: "match", factor: "keywords", points: keywordPoints });
   }
   const recency = ageDays <= 3 ? 15 : ageDays <= 7 ? 11 : ageDays <= 14 ? 7 : ageDays <= 30 ? 3 : 0;
   score += recency;
-  reasons.push({ text: ageDays < 1 ? "Published today" : `Published ${Math.floor(ageDays)} day${Math.floor(ageDays) === 1 ? "" : "s"} ago`, kind: recency >= 7 ? "match" : "constraint" });
+  reasons.push({ text: ageDays < 1 ? "Published today" : `Published ${Math.floor(ageDays)} day${Math.floor(ageDays) === 1 ? "" : "s"} ago`, kind: recency >= 7 ? "match" : "constraint", factor: "recency", points: recency });
   if (estimatedValue) {
-    score += estimatedValue >= 1e9 ? 12 : estimatedValue >= 1e8 ? 9 : estimatedValue >= 1e7 ? 5 : 2;
-    reasons.push({ text: `Stated value ${formatMoney(estimatedValue)}`, kind: "match" });
+    const valuePoints = estimatedValue >= 1e9 ? 12 : estimatedValue >= 1e8 ? 9 : estimatedValue >= 1e7 ? 5 : 2;
+    score += valuePoints;
+    reasons.push({ text: `Stated value ${formatMoney(estimatedValue)}`, kind: "match", factor: "value", points: valuePoints });
   } else {
-    reasons.push({ text: "No project value stated in the headline", kind: "constraint" });
+    reasons.push({ text: "No project value stated in the headline", kind: "constraint", factor: "value", points: 0 });
   }
   if (contractors.length) {
     score += 8;
-    reasons.push({ text: `Contractor named: ${contractors.slice(0, 3).join(", ")}`, kind: "match" });
+    reasons.push({ text: `Contractor named: ${contractors.slice(0, 3).join(", ")}`, kind: "match", factor: "contractor", points: 8 });
   }
   if (ownerType === "Private") {
     score += 5;
-    reasons.push({ text: "Private-sector owner, where work is awarded to approved vendors by private RFP", kind: "match" });
+    reasons.push({ text: "Private-sector owner, where work is awarded to approved vendors by private RFP", kind: "match", factor: "owner", points: 5 });
   } else if (ownerType === "Public") {
     score -= 8;
-    reasons.push({ text: "Public-sector owner: this is usually a public tender, not the private work EPCMst is aiming at", kind: "constraint" });
+    reasons.push({ text: "Public-sector owner: this is usually a public tender, not the private work EPCMst is aiming at", kind: "constraint", factor: "owner", points: -8 });
   }
   if (!org.known) reasons.push({ text: "Owner is not named in the headline", kind: "constraint" });
   if (noisy) {

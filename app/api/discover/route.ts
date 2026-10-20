@@ -74,6 +74,20 @@ export async function POST(request: Request) {
       .select("id");
     if (error) return Response.json({ error: `Couldn't save the leads: ${error.message}` }, { status: 500 });
     added = data?.length ?? 0;
+
+    // Leads saved earlier keep the user's own choices (stage, watch, dismiss) but get
+    // their scoring refreshed, so the score breakdown stays current as rules improve.
+    const insertedIds = new Set((data ?? []).map((r: { id: string }) => r.id));
+    await Promise.all(
+      rows
+        .filter((r) => !insertedIds.has(r.id))
+        .map((r) =>
+          supabase
+            .from("opportunities")
+            .update({ score: r.score, match_percent: r.match_percent, relevance: r.relevance, involved: r.involved, project_type: r.project_type, scale: r.scale, insight: r.insight })
+            .eq("id", r.id)
+        )
+    );
   }
 
   return Response.json({

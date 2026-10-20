@@ -21,7 +21,14 @@ export const LeadSchema = z.object({
   keywords: z.array(z.string()),
   score: z.number().int().min(0).max(100),
   estimatedValue: z.number().positive().optional(),
-  reasons: z.array(z.object({ text: z.string(), kind: z.enum(["match", "constraint"]) })),
+  reasons: z.array(
+    z.object({
+      text: z.string(),
+      kind: z.enum(["match", "constraint"]),
+      factor: z.enum(["region", "signal", "keywords", "recency", "value", "contractor", "owner"]).optional(),
+      points: z.number().optional(),
+    })
+  ),
 });
 
 export type Lead = z.infer<typeof LeadSchema>;

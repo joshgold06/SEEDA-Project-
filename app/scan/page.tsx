@@ -1,36 +1,118 @@
 "use client";
 
-import { CalendarCheck, History, TrendingUp } from "lucide-react";
+import { Loader2, RefreshCw } from "lucide-react";
+import { CountUp } from "@/components/CountUp";
 import { DiscoverPanel } from "@/components/DiscoverPanel";
-import { EpcmstLogo } from "@/components/EpcmstLogo";
+import { EpcmstMark } from "@/components/EpcmstLogo";
+import { TunePanel } from "@/components/TunePanel";
 import { Breadcrumbs, TopBar } from "@/components/ui";
 import { useAuth } from "@/lib/AuthContext";
+import { getPreviousVisit, isNewSince } from "@/lib/lastVisit";
 import { useStore } from "@/lib/store";
+import { useAutoRefresh } from "@/lib/useAutoRefresh";
+import { useWeights } from "@/lib/weights";
 
-function formatMoney(n: number) { return n >= 1_000_000 ? `$${Math.round(n / 1_000_000)}M` : `$${Math.round(n / 1000)}k`; }
+const formatMoney = (n: number) => (n >= 1e9 ? `$${(n / 1e9).toFixed(1)}B` : n >= 1e6 ? `$${Math.round(n / 1e6)}M` : n > 0 ? `$${Math.round(n / 1000)}k` : "$0");
+const sinceLabel = (iso: string) => new Date(iso).toLocaleDateString("en-CA", { month: "short", day: "numeric" });
 
 export default function ScanHome() {
-  const { opportunities } = useStore();
-  const { profile } = useAuth();
+  const { opportunities, loaded } = useStore();
+  const { profile, user } = useAuth();
+  const { scoreOf } = useWeights();
+
   const signals = opportunities.filter((o) => o.inScan && !o.dismissed);
-  const top = [...signals].sort((a, b) => b.score - a.score)[0];
-  const withDeadline = signals.filter((o) => o.daysLeft !== null);
-  const earliest = withDeadline.length ? Math.min(...withDeadline.map((o) => o.daysLeft!)) : null;
-  const urgent = withDeadline.filter((o) => (o.daysLeft ?? 99) <= 14).length;
-  const value = signals.reduce((sum, o) => sum + (o.value ?? 0), 0);
+  const refresh = useAutoRefresh(signals.length);
+  const previousVisit = user ? getPreviousVisit(user.id) : null;
+  const newCount = signals.filter((o) => isNewSince(o.createdAt, previousVisit)).length;
+  const top = [...signals].sort((a, b) => scoreOf(b) - scoreOf(a))[0];
+  // The largest single figure, not a sum: one project is often reported by several outlets.
+  // Figures above $50B are usually regional or industry totals ("energy projects pass $100B"), not one project.
+  const biggest = signals.reduce<(typeof signals)[number] | undefined>((best, o) => ((o.value ?? 0) <= 50e9 && (o.value ?? 0) > (best?.value ?? 0) ? o : best), undefined);
+
+  const summary = !loaded
+    ? "Loading your leads…"
+    : signals.length === 0
+      ? refresh.running
+        ? "Scanning public news for major projects. Leads appear here as each search finishes."
+        : "No leads yet. Run a search below to pull in real projects from public news."
+      : `${signals.length} project signal${signals.length === 1 ? "" : "s"} across Alberta, BC and Saskatchewan. Pick one from the list to start triaging.`;
+
   const stats = [
-    { icon: <CalendarCheck className="size-5 text-brand" />, value: top ? `${top.score}%` : "-", label: "Top Match", note: top ? `${top.title.length > 60 ? `${top.title.slice(0, 57)}...` : top.title} is the strongest signal.` : "No signals yet." },
-    { icon: <History className="size-5 text-blue-500" />, value: earliest !== null ? `${earliest}d` : "-", label: "Earliest Deadline", note: earliest === null ? "News signals have no deadline yet." : `${urgent} project${urgent === 1 ? "" : "s"} require immediate attention.` },
-    { icon: <TrendingUp className="size-5 text-warn" />, value: `+${formatMoney(value)}`, label: "Stated Value", note: "Combined value mentioned in signal headlines." },
+    {
+      label: "Top match",
+      value: top ? <><CountUp value={scoreOf(top)} /><span className="text-[14px] font-medium text-white/60"> / 100</span></> : "-",
+      note: top ? (top.title.length > 58 ? `${top.title.slice(0, 57)}…` : top.title) : "No leads yet",
+    },
+    {
+      label: "New since last visit",
+      value: <CountUp value={previousVisit ? newCount : signals.length} />,
+      note: previousVisit ? `since ${sinceLabel(previousVisit)}` : "First visit: everything is new to you",
+    },
+    {
+      label: "Largest project",
+      value: biggest?.value ? <CountUp value={biggest.value} format={formatMoney} /> : "-",
+      note: biggest ? (biggest.title.length > 58 ? `${biggest.title.slice(0, 57)}…` : biggest.title) : "No values stated yet",
+    },
   ];
-  return <>
-    <TopBar left={<Breadcrumbs items={[{ label: "Western Canada" }, { label: "Capital projects" }]} />} right={<></>} />
-    <section className="mx-auto max-w-[760px] px-8 pt-16 pb-16 text-center">
-      <EpcmstLogo className="mx-auto h-14 w-auto" />
-      <h1 className="mt-6 font-mono text-[22px] font-bold">Good morning{profile?.firstName ? `, ${profile.firstName}` : ""}</h1>
-      <p className="mx-auto mt-3 max-w-[400px] text-[14px] leading-relaxed text-neutral-500">{signals.length === 0 ? "No signals yet. Run a search below to pull in real projects from public news." : `${signals.length} project signal${signals.length === 1 ? "" : "s"} found across Alberta, BC and Saskatchewan. Select one from the list to begin triaging.`}</p>
-      <div className="mt-10 grid gap-5 text-left sm:grid-cols-3">{stats.map((s) => <div key={s.label} className="rounded-lg border border-line bg-white p-5 shadow-sm">{s.icon}<div className="mt-3 font-mono text-[19px] font-bold">{s.value}</div><div className="font-mono text-[11px] uppercase tracking-wider text-neutral-600">{s.label}</div><p className="mt-2 text-[11px] leading-relaxed text-neutral-500">{s.note}</p></div>)}</div>
-      <DiscoverPanel />
-    </section>
-  </>;
+
+  return (
+    <>
+      <TopBar left={<Breadcrumbs items={[{ label: "Western Canada" }, { label: "Capital projects" }]} />} right={<></>} />
+      <div className="mx-auto w-full max-w-[920px] px-8 py-8">
+        <section className="rise-in overflow-hidden rounded-2xl bg-linear-to-br from-rail via-navy to-brand p-8 text-white shadow-md">
+          <div className="flex items-center gap-3">
+            <span className="grid size-10 place-items-center rounded-lg bg-white"><EpcmstMark className="size-7" /></span>
+            <span className="font-mono text-[11px] uppercase tracking-[0.2em] text-white/70">Morning Scan</span>
+          </div>
+          <h1 className="mt-5 text-[30px] leading-tight font-bold">Good morning{profile?.firstName ? `, ${profile.firstName}` : ""}</h1>
+          <p className="mt-2 max-w-[560px] text-[14px] leading-relaxed text-white/80">{summary}</p>
+
+          <div className="mt-5 min-h-[34px]" aria-live="polite">
+            {refresh.running ? (
+              <div className="max-w-[420px]">
+                <div className="flex items-center gap-2 text-[12px] text-white/85">
+                  <Loader2 className="size-3.5 animate-spin" />
+                  Scanning public news: search {Math.min(refresh.done + 1, refresh.total)} of {refresh.total}
+                  {refresh.added > 0 && <span className="rounded bg-white/15 px-1.5 py-0.5 font-mono text-[10.5px]">+{refresh.added} new</span>}
+                </div>
+                <div className="mt-2 h-1.5 overflow-hidden rounded-full bg-white/15">
+                  <div className="h-full rounded-full bg-white transition-all duration-500" style={{ width: `${(refresh.done / refresh.total) * 100}%` }} />
+                </div>
+              </div>
+            ) : (
+              loaded && (
+                <div className="flex flex-wrap items-center gap-3 text-[12px] text-white/80">
+                  {refresh.finished && (refresh.added > 0 || !refresh.error) && <span>{refresh.added > 0 ? `Scan finished: ${refresh.added} new lead${refresh.added === 1 ? "" : "s"} found.` : "Scan finished: nothing new since the last one."}</span>}
+                  {refresh.error && <span className="text-amber-200">Some searches failed: {refresh.error}</span>}
+                  <button onClick={() => refresh.refresh()} className="inline-flex items-center gap-1.5 rounded-full bg-white/15 px-3 py-1.5 font-medium text-white transition-colors hover:bg-white/25">
+                    <RefreshCw className="size-3" />
+                    Scan all searches now
+                  </button>
+                </div>
+              )
+            )}
+          </div>
+
+          <div className="mt-6 grid gap-3 sm:grid-cols-3">
+            {stats.map((s) => (
+              <div key={s.label} className="rounded-xl bg-white/10 p-4 backdrop-blur-sm">
+                <div className="font-mono text-[11px] uppercase tracking-wider text-white/65">{s.label}</div>
+                {loaded ? (
+                  <>
+                    <div className="mt-1.5 font-mono text-[24px] leading-none font-bold">{s.value}</div>
+                    <p className="mt-2 truncate text-[11.5px] text-white/65">{s.note}</p>
+                  </>
+                ) : (
+                  <div className="mt-2 animate-pulse space-y-2"><div className="h-6 w-16 rounded bg-white/20" /><div className="h-2.5 w-3/4 rounded bg-white/10" /></div>
+                )}
+              </div>
+            ))}
+          </div>
+        </section>
+
+        <TunePanel />
+        <DiscoverPanel locked={refresh.running} />
+      </div>
+    </>
+  );
 }

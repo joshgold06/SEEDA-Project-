@@ -3,13 +3,15 @@
 @theme {
   --font-sans: "Inter Variable", ui-sans-serif, system-ui, sans-serif;
   --font-mono: "JetBrains Mono", ui-monospace, SFMono-Regular, Menlo, monospace;
-  --color-brand: #10b981;
-  --color-brand-dark: #059669;
-  --color-brand-soft: #ecf8f3;
-  --color-brand-line: #bfe8d6;
+  /* EPCMst logo palette: bright blue mark, navy lettering. */
+  --color-brand: #0e75bb;
+  --color-brand-dark: #2e5483;
+  --color-brand-soft: #eaf3fa;
+  --color-brand-line: #bcd9ee;
+  --color-navy: #2e5483;
   --color-ink: #111111;
-  --color-rail: #1c1c1e;
-  --color-canvas: #fafafa;
+  --color-rail: #0f2238;
+  --color-canvas: #f6f8fb;
   --color-line: #e5e7eb;
   --color-muted: #6b7280;
   --color-warn: #f97316;
@@ -18,6 +20,15 @@
 html, body { background: var(--color-canvas); color: var(--color-ink); }
 body { min-width: 320px; }
 .label { @apply font-mono text-[11px] uppercase tracking-[0.12em] text-muted; }
+
+@keyframes rise-in {
+  from { opacity: 0; transform: translateY(6px); }
+  to { opacity: 1; transform: none; }
+}
+.rise-in { animation: rise-in 0.35s ease-out both; }
+@media (prefers-reduced-motion: reduce) {
+  .rise-in { animation: none; }
+}
 
 @media (max-width: 800px) {
   .signal-list { display: none; }
