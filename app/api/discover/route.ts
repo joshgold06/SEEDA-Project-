@@ -2,6 +2,7 @@ import { createClient } from "@supabase/supabase-js";
 import { z } from "zod";
 import { buildCandidate, dedupeLeads, toOpportunity } from "@/lib/leads/extract";
 import { fetchGoogleNews } from "@/lib/leads/googleNews";
+import { ensureOrganizations } from "@/lib/leads/organizations";
 import { resolveQuery } from "@/lib/leads/presets";
 import { LeadSchema, MIN_SCORE, type Lead } from "@/lib/leads/schema";
 import { opportunityToRow } from "@/lib/supabase/mappers";
@@ -62,9 +63,19 @@ export async function POST(request: Request) {
   }
 
   const unique = dedupeLeads(valid);
-  const rows = unique
-    .slice(0, MAX_NEW_LEADS)
-    .map((lead) => opportunityToRow(toOpportunity(lead, body.data.assignee?.trim() || "U")));
+  const picked = unique.slice(0, MAX_NEW_LEADS);
+
+  // Each company is stored once in organizations; a lead points at it instead of repeating the name.
+  const companies = new Map<string, "Private" | "Public" | "Unclear">();
+  for (const lead of picked) if (lead.organizationKnown) companies.set(lead.organization, lead.ownerType);
+  const orgIds = await ensureOrganizations(supabase, [...companies].map(([name, owner_type]) => ({ name, owner_type })));
+
+  const rows = picked.map((lead) =>
+    opportunityToRow(toOpportunity(lead, body.data.assignee?.trim() || "U"), {
+      discoveredBy: userData.user.id,
+      organizationId: orgIds.get(lead.organization) ?? null,
+    })
+  );
 
   let added = 0;
   if (rows.length) {

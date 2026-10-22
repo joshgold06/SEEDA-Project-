@@ -41,9 +41,20 @@ function detectRegion(title: string, publisher: string): { region?: WesternRegio
   return { ...scanRegion(publisher), viaPublisher: true };
 }
 
+// One company, one row: a headline may say "CNRL" or "Canadian Natural", but the organizations
+// table holds each company once, under the name below.
+const ORG_ALIASES: Record<string, string> = {
+  CNRL: "Canadian Natural",
+  Pathways: "Pathways Alliance",
+  "Pembina Pipeline": "Pembina",
+};
+
 function detectOrganization(title: string): { name: string; known: boolean } {
   const knownHits = KNOWN_ORGANIZATIONS.filter((o) => has(title, o.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")));
-  if (knownHits.length) return { name: knownHits.sort((a, b) => b.length - a.length)[0], known: true };
+  if (knownHits.length) {
+    const longest = knownHits.sort((a, b) => b.length - a.length)[0];
+    return { name: ORG_ALIASES[longest] ?? longest, known: true };
+  }
   const civic = title.match(/\b(City|Town|County|Municipality|Village) of ([A-Z][\w.'-]+(?: [A-Z][\w.'-]+)?)/);
   if (civic) return { name: civic[0], known: true };
   return { name: "Not identified in headline", known: false };
