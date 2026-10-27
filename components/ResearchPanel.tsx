@@ -65,7 +65,7 @@ export function ResearchPanel({ opp }: { opp: Opportunity }) {
     const outcome = await runResearch(session.access_token, opp.id);
     setRunning(false);
     if (!outcome.ok) {
-      setError(outcome.code === "not_configured" ? "Research isn't switched on yet. The site owner needs to add the search and AI keys." : outcome.error);
+      setError(outcome.error);
       return;
     }
     setResearch(outcome.row);

@@ -23,7 +23,9 @@ export async function POST(request: Request) {
   const tavily = process.env.TAVILY_API_KEY;
   const gemini = process.env.GEMINI_API_KEY;
   if (!tavily || !gemini) {
-    return Response.json({ error: "Research isn't set up on this server yet. It needs a search key and an AI key.", code: "not_configured" }, { status: 503 });
+    // Only the variable names are reported, never their values.
+    const missing = [!tavily ? "TAVILY_API_KEY" : null, !gemini ? "GEMINI_API_KEY" : null].filter(Boolean).join(" and ");
+    return Response.json({ error: `Research isn't switched on yet: the server has no ${missing}. Add it in the hosting settings and redeploy.`, code: "not_configured" }, { status: 503 });
   }
 
   // Only signed-in people can start research, and what they can read is limited by their own access.
