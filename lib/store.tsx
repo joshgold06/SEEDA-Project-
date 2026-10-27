@@ -3,6 +3,7 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from "react";
 import { Contact, contactToRow, NewContact, rowToContact, type ContactRow } from "./contacts";
 import { Opportunity, Stage } from "./data";
+import { rowToResearch, type Accepted, type ResearchDbRow, type ResearchRow } from "./research/types";
 import { Draft, generateDraft } from "./outreach";
 import { useAuth } from "./AuthContext";
 import { ensureOrganizations } from "./leads/organizations";
@@ -23,6 +24,7 @@ interface State {
   opportunities: Opportunity[];
   drafts: Record<string, Draft>;
   contacts: Contact[];
+  research: Record<string, ResearchRow>;
 }
 
 interface Store extends State {
@@ -37,10 +39,15 @@ interface Store extends State {
   /** Resolves false if the contact could not be saved (it is then taken back off the screen). */
   addContact: (contact: NewContact) => Promise<boolean>;
   removeContact: (id: string) => void;
+  researchFor: (opportunityId: string) => ResearchRow | undefined;
+  /** Puts a finished research run (saved by the server) on screen. */
+  setResearch: (row: ResearchRow) => void;
+  /** Saves what the person accepted or dismissed from a lead's research. */
+  updateResearch: (opportunityId: string, patch: { accepted?: Accepted; dismissed?: string[] }) => void;
   reset: () => void;
 }
 
-const EMPTY_STATE: State = { opportunities: [], drafts: {}, contacts: [] };
+const EMPTY_STATE: State = { opportunities: [], drafts: {}, contacts: [], research: {} };
 // The only fields a person changes about a lead; they are saved to lead_actions, not to the lead.
 const ACTION_KEYS: (keyof Opportunity)[] = ["stage", "watched", "dismissed"];
 
@@ -87,11 +94,17 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
       // Saved contacts are an extra: if they can't be read, the rest of the app still loads.
       const savedContacts = await supabase.from("lead_contacts").select("*").order("created_at", { ascending: true });
       if (savedContacts.error) console.warn("EPCMst: could not load saved contacts.", savedContacts.error);
+      // Research is another extra: without its table the rest still loads.
+      const savedResearch = await supabase.from("lead_research").select("opportunity_id, findings, accepted, dismissed, researched_at");
+      if (savedResearch.error) console.warn("EPCMst: could not load saved research.", savedResearch.error);
+      const researchMap: Record<string, ResearchRow> = {};
+      for (const row of (savedResearch.data ?? []) as ResearchDbRow[]) researchMap[row.opportunity_id] = rowToResearch(row);
 
       commit({
         opportunities: (leads.data as unknown as OpportunityRow[]).map((row) => rowToOpportunity(row, actionById.get(row.id))),
         drafts: draftMap,
         contacts: ((savedContacts.data ?? []) as ContactRow[]).map(rowToContact),
+        research: researchMap,
       });
     } catch (err) {
       console.warn("EPCMst: could not load from Supabase.", err);
@@ -202,6 +215,31 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
     [supabase, commit]
   );
 
+  const setResearch = useCallback(
+    (row: ResearchRow) => commit({ ...stateRef.current, research: { ...stateRef.current.research, [row.opportunityId]: row } }),
+    [commit]
+  );
+
+  const updateResearch = useCallback(
+    (opportunityId: string, patch: { accepted?: Accepted; dismissed?: string[] }) => {
+      const current = stateRef.current.research[opportunityId];
+      if (!current) return;
+      const next: ResearchRow = { ...current, ...patch };
+      commit({ ...stateRef.current, research: { ...stateRef.current.research, [opportunityId]: next } });
+      if (!supabase || !userIdRef.current) return;
+      supabase
+        .from("lead_research")
+        .update({ accepted: next.accepted, dismissed: next.dismissed })
+        .eq("opportunity_id", opportunityId)
+        .then(({ error }) => {
+          if (!error) return;
+          console.warn("EPCMst: failed to save research choice.", error);
+          commit({ ...stateRef.current, research: { ...stateRef.current.research, [opportunityId]: current } });
+        });
+    },
+    [supabase, commit]
+  );
+
   const store = useMemo<Store>(
     () => ({
       ...state,
@@ -215,9 +253,12 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
       contactsFor: (opportunityId) => state.contacts.filter((c) => c.opportunityId === opportunityId),
       addContact,
       removeContact,
+      researchFor: (opportunityId) => state.research[opportunityId],
+      setResearch,
+      updateResearch,
       reset: () => void loadFromSupabase(),
     }),
-    [state, loaded, update, addLead, saveDraft, addContact, removeContact, loadFromSupabase, senderName]
+    [state, loaded, update, addLead, saveDraft, addContact, removeContact, setResearch, updateResearch, loadFromSupabase, senderName]
   );
 
   return <StoreContext.Provider value={store}>{children}</StoreContext.Provider>;

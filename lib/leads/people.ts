@@ -25,21 +25,24 @@ export function contractorsOf(opp: Opportunity): string[] {
   return text.startsWith(CONTRACTOR_PREFIX) ? text.slice(CONTRACTOR_PREFIX.length).split(", ").filter(Boolean) : [];
 }
 
-export function peopleSearches(opp: Opportunity): PeopleSearch[] {
+/** `confirmed` adds an owner and contractors the person accepted from research, beyond what the headline named. */
+export function peopleSearches(opp: Opportunity, confirmed?: { owner?: string | null; contractors?: string[] }): PeopleSearch[] {
   const searches: PeopleSearch[] = [];
-  const ownerKnown = opp.owner && opp.owner !== "Not identified in headline";
+  const ownerName = opp.owner && opp.owner !== "Not identified in headline" && opp.owner !== "Unknown owner" ? opp.owner : (confirmed?.owner ?? null);
+  const ownerKnown = Boolean(ownerName);
   const project = opp.fullTitle ?? opp.title;
+  const contractors = [...new Set([...contractorsOf(opp), ...(confirmed?.contractors ?? [])])];
 
-  if (ownerKnown) {
-    searches.push({ label: `People at ${opp.owner}`, note: "Owner: project and procurement roles on LinkedIn", url: linkedInPeople(opp.owner) });
+  if (ownerName) {
+    searches.push({ label: `People at ${ownerName}`, note: "Owner: project and procurement roles on LinkedIn", url: linkedInPeople(ownerName) });
   }
-  for (const c of contractorsOf(opp).slice(0, 3)) {
+  for (const c of contractors.slice(0, 3)) {
     searches.push({ label: `People at ${c}`, note: "Contractor: project and procurement roles on LinkedIn", url: linkedInPeople(c) });
   }
   searches.push({
     label: ownerKnown ? "Who else is on this project" : "Who owns and builds this",
     note: "Google: contractors, owners and partners named for it",
-    url: google(`${ownerKnown ? `"${opp.owner}" ` : ""}${project} contractor OR EPC OR awarded OR partner`),
+    url: google(`${ownerKnown ? `"${ownerName}" ` : ""}${project} contractor OR EPC OR awarded OR partner`),
   });
   return searches;
 }

@@ -6,9 +6,11 @@ import { useToast } from "@/components/Toast";
 import { Button } from "@/components/ui";
 import { cleanLink, Contact, contactsToCsv, downloadCsv } from "@/lib/contacts";
 import type { Opportunity } from "@/lib/data";
-import { contractorsOf, linkedInPeople } from "@/lib/leads/people";
-import { OWNER_NOT_NAMED } from "@/lib/supabase/mappers";
+import { linkedInPeople } from "@/lib/leads/people";
+import { chainCompanies } from "@/lib/research/merge";
+import type { ResearchRow } from "@/lib/research/types";
 import { useStore } from "@/lib/store";
+import { ResearchPanel } from "./ResearchPanel";
 
 // The chain Max works through by hand: the owner, the project, the contractors on it, and the
 // people at those companies. The first three come from the lead; the people are the contacts the
@@ -44,13 +46,14 @@ const COLS: Record<Kind, { x: number; w: number }> = {
 const clip = (text: string, max: number) => (text.length > max ? `${text.slice(0, max - 1)}…` : text);
 const same = (a: string, b: string) => a.trim().toLowerCase() === b.trim().toLowerCase();
 
-function buildChain(opp: Opportunity, contacts: Contact[]) {
-  const ownerKnown = opp.owner && opp.owner !== OWNER_NOT_NAMED && opp.owner !== "Unknown owner";
-  const contractors = contractorsOf(opp).slice(0, 6);
+function buildChain(opp: Opportunity, contacts: Contact[], research: ResearchRow | undefined) {
+  const { owner: ownerCompany, contractors: contractorCompanies } = chainCompanies(opp, research);
+  const ownerKnown = ownerCompany !== null;
+  const contractors = contractorCompanies.slice(0, 6).map((c) => c.name);
 
   const nodes: Node[] = [
-    ownerKnown
-      ? { key: "owner", kind: "owner", top: "Owner", name: opp.owner, href: linkedInPeople(opp.owner) }
+    ownerCompany
+      ? { key: "owner", kind: "owner", top: ownerCompany.confirmed ? "Owner · confirmed" : "Owner", name: ownerCompany.name, href: linkedInPeople(ownerCompany.name) }
       : { key: "owner", kind: "owner", top: "Owner", name: "Not named yet", ghost: true },
     { key: "project", kind: "project", top: "Project", name: opp.fullTitle ?? opp.title },
   ];
@@ -60,8 +63,8 @@ function buildChain(opp: Opportunity, contacts: Contact[]) {
     nodes.push({ key: "c-none", kind: "contractor", top: "Contractors", name: "None found yet", ghost: true });
     edges.push({ from: "project", to: "c-none", dashed: true });
   }
-  contractors.forEach((name, i) => {
-    nodes.push({ key: `c-${i}`, kind: "contractor", top: "Contractor", name, href: linkedInPeople(name) });
+  contractorCompanies.slice(0, 6).forEach((c, i) => {
+    nodes.push({ key: `c-${i}`, kind: "contractor", top: c.confirmed ? "Contractor · confirmed" : "Contractor", name: c.name, href: linkedInPeople(c.name) });
     edges.push({ from: "project", to: `c-${i}` });
   });
 
@@ -75,7 +78,7 @@ function buildChain(opp: Opportunity, contacts: Contact[]) {
     const company = c.company ?? "";
     const contractorIndex = company ? contractors.findIndex((n) => same(n, company)) : -1;
     if (contractorIndex >= 0) edges.push({ from: `c-${contractorIndex}`, to: `p-${c.id}` });
-    else if (ownerKnown && company && same(opp.owner, company)) edges.push({ from: "owner", to: `p-${c.id}`, dashed: true });
+    else if (ownerCompany && company && same(ownerCompany.name, company)) edges.push({ from: "owner", to: `p-${c.id}`, dashed: true });
     else edges.push({ from: "project", to: `p-${c.id}`, dashed: true });
   });
   return { nodes, edges, overflow: Math.max(0, contacts.length - 8) };
@@ -95,8 +98,8 @@ function layout(nodes: Node[]) {
   return { pos, height };
 }
 
-export function ProjectChain({ opp, contacts }: { opp: Opportunity; contacts: Contact[] }) {
-  const { nodes, edges, overflow } = useMemo(() => buildChain(opp, contacts), [opp, contacts]);
+export function ProjectChain({ opp, contacts, research }: { opp: Opportunity; contacts: Contact[]; research?: ResearchRow }) {
+  const { nodes, edges, overflow } = useMemo(() => buildChain(opp, contacts, research), [opp, contacts, research]);
   const { pos, height } = useMemo(() => layout(nodes), [nodes]);
   const summary = `Chain for ${opp.fullTitle ?? opp.title}: ${nodes.filter((n) => !n.ghost).map((n) => `${n.top} ${n.name}`).join("; ")}`;
 
@@ -165,13 +168,14 @@ export function ProjectChain({ opp, contacts }: { opp: Opportunity; contacts: Co
 const FIELD = "mt-1 h-9 w-full rounded border border-line bg-surface px-3 text-[13px] text-ink outline-none focus:border-brand";
 
 export function ProjectChainSection({ opp }: { opp: Opportunity }) {
-  const { contactsFor, addContact, removeContact, opportunities } = useStore();
+  const { contactsFor, addContact, removeContact, opportunities, researchFor } = useStore();
   const toast = useToast();
   const contacts = contactsFor(opp.id);
+  const research = researchFor(opp.id);
   const companies = useMemo(() => {
-    const owner = opp.owner && opp.owner !== OWNER_NOT_NAMED && opp.owner !== "Unknown owner" ? [opp.owner] : [];
-    return [...owner, ...contractorsOf(opp)];
-  }, [opp]);
+    const { owner, contractors } = chainCompanies(opp, research);
+    return [...(owner ? [owner.name] : []), ...contractors.map((c) => c.name)];
+  }, [opp, research]);
 
   const listId = useId();
   const blank = { name: "", role: "", company: "", linkedin: "", note: "" };
@@ -209,7 +213,8 @@ export function ProjectChainSection({ opp }: { opp: Opportunity }) {
 
   return (
     <div>
-      <ProjectChain opp={opp} contacts={contacts} />
+      <ResearchPanel opp={opp} />
+      <ProjectChain opp={opp} contacts={contacts} research={research} />
 
       <div className="mt-4 flex flex-wrap items-center justify-between gap-2 border-t border-line pt-4">
         <h3 className="text-[12.5px] font-semibold">Saved contacts <span className="font-normal text-neutral-500">({contacts.length})</span></h3>
