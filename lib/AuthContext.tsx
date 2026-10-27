@@ -184,7 +184,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const signInWithGoogle = useCallback(async () => {
     const { error } = await supabase.auth.signInWithOAuth({
       provider: "google",
-      options: { redirectTo: `${window.location.origin}/scan` },
+      // Always show Google's account picker, so a browser already signed in to one Google account
+      // doesn't silently sign the person in as that account.
+      options: { redirectTo: `${window.location.origin}/scan`, queryParams: { prompt: "select_account" } },
     });
     return describeAuthError(error);
   }, [supabase]);
