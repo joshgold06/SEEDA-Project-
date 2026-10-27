@@ -110,11 +110,18 @@ export function fitBox(latMin: number, latMax: number, lngMin: number, lngMax: n
   return { x: (x0 + x1) / 2 - w / 2, y: (y0 + y1) / 2 - h / 2, w, h };
 }
 
-export type MapFocus = "all" | WesternRegion;
+// The Vancouver area packs Vancouver, Burnaby, Surrey, Coquitlam, Delta, Squamish and Abbotsford
+// into a few millimetres at province scale, so it gets a close-up view of its own.
+export const LOWER_MAINLAND = { latMin: 48.95, latMax: 49.85, lngMin: -123.4, lngMax: -122.1 };
+export const inLowerMainland = (p: Pick<MapPlace, "lat" | "lng">) =>
+  p.lat >= LOWER_MAINLAND.latMin && p.lat <= LOWER_MAINLAND.latMax && p.lng >= LOWER_MAINLAND.lngMin && p.lng <= LOWER_MAINLAND.lngMax;
+
+export type MapFocus = "all" | WesternRegion | "Lower Mainland";
 
 export const FOCUS_BOXES: Record<MapFocus, ViewBox> = {
   all: fitBox(48.2, 60.4, -139.5, -100.5, 0.02),
   Alberta: fitBox(48.8, 60.2, -120.4, -109.6),
   "British Columbia": fitBox(48.2, 60.2, -139.5, -113.5),
   Saskatchewan: fitBox(48.8, 60.2, -110.4, -101.2),
+  "Lower Mainland": fitBox(LOWER_MAINLAND.latMin, LOWER_MAINLAND.latMax, LOWER_MAINLAND.lngMin, LOWER_MAINLAND.lngMax, 0.04),
 };

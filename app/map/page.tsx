@@ -7,7 +7,7 @@ import { LeadMap, tierColor, type PlaceGroup } from "@/components/LeadMap";
 import { Breadcrumbs, Score, SectorIcon, TopBar } from "@/components/ui";
 import { useAuth } from "@/lib/AuthContext";
 import { getPreviousVisit, isNewSince } from "@/lib/lastVisit";
-import { placeFor, type MapFocus } from "@/lib/leads/geo";
+import { inLowerMainland, placeFor, type MapFocus } from "@/lib/leads/geo";
 import { STAGES } from "@/lib/data";
 import { useStore } from "@/lib/store";
 import { useWeights } from "@/lib/weights";
@@ -17,6 +17,7 @@ const FOCUS_OPTIONS: { value: MapFocus; label: string }[] = [
   { value: "Alberta", label: "Alberta" },
   { value: "British Columbia", label: "BC" },
   { value: "Saskatchewan", label: "Saskatchewan" },
+  { value: "Lower Mainland", label: "Vancouver area" },
 ];
 
 const chip = (active: boolean) =>
@@ -46,7 +47,9 @@ export default function MapPage() {
         missing++;
         continue;
       }
-      if (focus !== "all" && place.region !== focus) continue;
+      if (focus === "Lower Mainland") {
+        if (!inLowerMainland(place)) continue;
+      } else if (focus !== "all" && place.region !== focus) continue;
       const group = byPlace.get(place.key) ?? { place, leads: [], topScore: 0 };
       group.leads.push(o);
       group.topScore = Math.max(group.topScore, scoreOf(o));
