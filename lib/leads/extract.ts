@@ -6,7 +6,7 @@ import {
   EPC_KEYWORDS, INDUSTRY_TERMS, KNOWN_CONTRACTORS, KNOWN_ORGANIZATIONS, NOISE_TERMS, ORG_INDUSTRY,
   PUBLIC_OWNER_PATTERN, REGION_ABBR, REGION_TERMS,
   SERVICE_LINE, SIGNAL_PHASE_TAG, SIGNAL_POINTS, SIGNAL_TERMS, SIGNAL_TYPES, ACTIVE_REGIONS,
-  type SignalType, type WesternRegion,
+  type Region, type SignalType,
 } from "./taxonomy";
 
 const DAY_MS = 86_400_000;
@@ -23,8 +23,8 @@ function has(text: string, term: string): boolean {
 
 const found = (text: string, terms: string[]) => terms.filter((t) => has(text, t));
 
-function scanRegion(text: string): { region?: WesternRegion; place?: string } {
-  let best: { region: WesternRegion; hits: number; place?: string } | undefined;
+function scanRegion(text: string): { region?: Region; place?: string } {
+  let best: { region: Region; hits: number; place?: string } | undefined;
   for (const region of ACTIVE_REGIONS) {
     const hits = REGION_TERMS[region].filter((r) => has(text, r.term));
     if (!hits.length) continue;
@@ -35,7 +35,7 @@ function scanRegion(text: string): { region?: WesternRegion; place?: string } {
 
 // A local outlet ("Calgary Herald", "Red Deer Advocate") is a fair hint when the headline
 // itself leaves the place out, so the publisher is only consulted as a fallback.
-function detectRegion(title: string, publisher: string): { region?: WesternRegion; place?: string; viaPublisher: boolean } {
+function detectRegion(title: string, publisher: string): { region?: Region; place?: string; viaPublisher: boolean } {
   const fromTitle = scanRegion(title);
   if (fromTitle.region) return { ...fromTitle, viaPublisher: false };
   return { ...scanRegion(publisher), viaPublisher: true };
@@ -95,7 +95,7 @@ export function buildCandidate(item: NewsItem, now: Date = new Date()): Record<s
   if (/\b(contract|awarded)\b/i.test(title)) {
     const winner = title.match(/^([A-Z][\w&.'-]*(?: [A-Z][\w&.'-]*){0,3}) (?:wins|secures|lands|is awarded|awarded|selected)\b/);
     const name = winner?.[1];
-    const generic = /^(the|province|city|town|company|government|alberta|british columbia|saskatchewan|ottawa|canada|feds|federal)\b/i;
+    const generic = /^(the|province|city|town|company|government|alberta|british columbia|saskatchewan|manitoba|ontario|ottawa|canada|feds|federal)\b/i;
     if (name && !generic.test(name) && !PUBLIC_OWNER_PATTERN.test(name) && !contractors.includes(name) && name !== org.name) contractors.push(name);
   }
   const ownerType: "Private" | "Public" | "Unclear" = !org.known

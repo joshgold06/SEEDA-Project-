@@ -8,6 +8,7 @@ import "./globals.css";
 import { AppShell } from "@/components/AppShell";
 import { ToastProvider } from "@/components/Toast";
 import { AuthProvider } from "@/lib/AuthContext";
+import { FiltersProvider } from "@/lib/filters";
 import { StoreProvider } from "@/lib/store";
 import { ThemeProvider } from "@/lib/theme";
 import { THEME_INIT_SCRIPT } from "@/lib/themeScript";
@@ -29,7 +30,9 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
             <StoreProvider>
               <WeightsProvider>
                 <ToastProvider>
-                  <AppShell>{children}</AppShell>
+                  <FiltersProvider>
+                    <AppShell>{children}</AppShell>
+                  </FiltersProvider>
                 </ToastProvider>
               </WeightsProvider>
             </StoreProvider>

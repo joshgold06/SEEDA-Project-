@@ -9,6 +9,7 @@ import { TunePanel, useTuneSummary } from "@/components/TunePanel";
 import { Breadcrumbs, TopBar } from "@/components/ui";
 import { useAuth } from "@/lib/AuthContext";
 import { getPreviousVisit, isNewSince } from "@/lib/lastVisit";
+import { ACTIVE_REGION_SENTENCE } from "@/lib/leads/taxonomy";
 import { useStore } from "@/lib/store";
 import { useAutoRefresh } from "@/lib/useAutoRefresh";
 import { useWeights } from "@/lib/weights";
@@ -37,7 +38,7 @@ export default function ScanHome() {
       ? refresh.running
         ? "Scanning public news for major projects. Leads appear here as each search finishes."
         : "No leads yet. Run a search below to pull in real projects from public news."
-      : `${signals.length} project signal${signals.length === 1 ? "" : "s"} across Alberta, BC and Saskatchewan. Pick one from the list to start triaging.`;
+      : `${signals.length} project signal${signals.length === 1 ? "" : "s"} across ${ACTIVE_REGION_SENTENCE}. Pick one from the list to start triaging.`;
 
   const stats = [
     {

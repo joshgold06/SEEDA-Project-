@@ -3,21 +3,36 @@
 // Keywords.pdf (EPC terms). Generic words from that list ("audit", "claims",
 // "design", "consultant") are left out on purpose: they match almost any headline.
 
-export const WESTERN_REGIONS = ["Alberta", "British Columbia", "Saskatchewan"] as const;
-export type WesternRegion = (typeof WESTERN_REGIONS)[number];
+export const REGIONS = ["Alberta", "British Columbia", "Saskatchewan", "Manitoba", "Ontario"] as const;
+export type Region = (typeof REGIONS)[number];
 
 // Regions leads are currently accepted from. Remove one here to narrow the
 // search; place names for every region stay defined below.
-export const ACTIVE_REGIONS: readonly WesternRegion[] = ["Alberta", "British Columbia", "Saskatchewan"];
+export const ACTIVE_REGIONS: readonly Region[] = ["Alberta", "British Columbia", "Saskatchewan", "Manitoba", "Ontario"];
 
-export const REGION_ABBR: Record<WesternRegion, string> = {
+export const REGION_ABBR: Record<Region, string> = {
   Alberta: "AB",
   "British Columbia": "BC",
   Saskatchewan: "SK",
+  Manitoba: "MB",
+  Ontario: "ON",
 };
 
+/** Short names for sentences and chips: "Alberta, BC, Saskatchewan, Manitoba and Ontario". */
+export const REGION_SHORT: Record<Region, string> = {
+  Alberta: "Alberta",
+  "British Columbia": "BC",
+  Saskatchewan: "Saskatchewan",
+  Manitoba: "Manitoba",
+  Ontario: "Ontario",
+};
+export const ACTIVE_REGION_SENTENCE = (() => {
+  const names = ACTIVE_REGIONS.map((r) => REGION_SHORT[r]);
+  return names.length < 2 ? (names[0] ?? "") : `${names.slice(0, -1).join(", ")} and ${names[names.length - 1]}`;
+})();
+
 // Longest/most specific terms first inside each region. Matched on word boundaries.
-export const REGION_TERMS: Record<WesternRegion, { term: string; place?: string }[]> = {
+export const REGION_TERMS: Record<Region, { term: string; place?: string }[]> = {
   Alberta: [
     { term: "fort mcmurray", place: "Fort McMurray" },
     { term: "wood buffalo", place: "Fort McMurray" },
@@ -93,6 +108,51 @@ export const REGION_TERMS: Record<WesternRegion, { term: string; place?: string 
     { term: "saskatchewan" },
     { term: "sask\\." },
   ],
+  // Ambiguous names (Windsor, Kingston, Brandon, Thompson, London) are left out on purpose:
+  // a wrong province is worse than no town. The province name itself still places the lead.
+  Manitoba: [
+    { term: "winnipeg", place: "Winnipeg" },
+    { term: "flin flon", place: "Flin Flon" },
+    { term: "the pas", place: "The Pas" },
+    { term: "portage la prairie", place: "Portage la Prairie" },
+    { term: "steinbach", place: "Steinbach" },
+    { term: "selkirk", place: "Selkirk" },
+    { term: "lynn lake", place: "Lynn Lake" },
+    { term: "port of churchill", place: "Churchill" },
+    { term: "churchill, man", place: "Churchill" },
+    { term: "keeyask", place: "Northern Manitoba" },
+    { term: "bipole", place: "Northern Manitoba" },
+    { term: "manitoba hydro" },
+    { term: "manitoba" },
+  ],
+  Ontario: [
+    { term: "toronto", place: "Toronto" },
+    { term: "greater toronto", place: "Toronto" },
+    { term: "ottawa", place: "Ottawa" },
+    { term: "mississauga", place: "Mississauga" },
+    { term: "hamilton", place: "Hamilton" },
+    { term: "sudbury", place: "Sudbury" },
+    { term: "thunder bay", place: "Thunder Bay" },
+    { term: "sarnia", place: "Sarnia" },
+    { term: "niagara", place: "Niagara" },
+    { term: "oshawa", place: "Oshawa" },
+    { term: "pickering", place: "Pickering" },
+    { term: "kincardine", place: "Kincardine" },
+    { term: "bruce power", place: "Kincardine" },
+    { term: "timmins", place: "Timmins" },
+    { term: "sault ste\\.? marie", place: "Sault Ste. Marie" },
+    { term: "brampton", place: "Brampton" },
+    { term: "markham", place: "Markham" },
+    { term: "oakville", place: "Oakville" },
+    { term: "barrie", place: "Barrie" },
+    { term: "guelph", place: "Guelph" },
+    { term: "welland", place: "Welland" },
+    { term: "ring of fire", place: "Ring of Fire" },
+    { term: "northern ontario", place: "Northern Ontario" },
+    { term: "ontario power generation" },
+    { term: "ontario" },
+    { term: "ont\\." },
+  ],
 };
 
 export const SIGNAL_TYPES = [
@@ -159,11 +219,14 @@ export const EPC_KEYWORDS: string[] = [
 ];
 
 export const INDUSTRY_TERMS: Record<string, string[]> = {
-  Energy: ["oil", "gas", "lng", "pipeline", "refinery", "oil sands", "petrochemical", "midstream", "upstream", "hydrogen", "carbon capture", "ccus", "power plant", "grid", "energy", "geothermal", "terminal"],
-  Mining: ["mine", "mining", "lithium", "potash", "uranium", "smelter", "coal", "copper", "gold"],
+  Energy: ["oil", "gas", "lng", "pipeline", "refinery", "oil sands", "petrochemical", "midstream", "upstream", "hydrogen", "carbon capture", "ccus", "power plant", "grid", "energy", "geothermal", "terminal", "nuclear", "reactor", "hydroelectric", "hydro"],
+  Mining: ["mine", "mining", "lithium", "potash", "uranium", "smelter", "coal", "copper", "gold", "nickel", "critical minerals", "ring of fire"],
   Water: ["water treatment", "wastewater", "water reuse", "water plant", "stormwater", "biosolids", "industrial water", "water infrastructure"],
-  Infrastructure: ["bridge", "transit", "highway", "airport", "rail", "infrastructure", "overpass", "interchange"],
+  Infrastructure: ["bridge", "transit", "highway", "airport", "rail", "infrastructure", "overpass", "interchange", "subway", "light rail", "lrt", "port of", "harbour"],
 };
+
+/** The industry choices shown in the filters, in display order. */
+export const INDUSTRIES = Object.keys(INDUSTRY_TERMS);
 
 export const SERVICE_LINE: Record<string, string> = {
   Energy: "energy facilities and pipelines",
@@ -194,6 +257,8 @@ export const ORG_INDUSTRY: Record<string, string> = {
   "Wolf Midstream": "Energy", Tidewater: "Energy",
   Teck: "Mining", Nutrien: "Mining", Cameco: "Mining", BHP: "Mining", Mosaic: "Mining",
   "E3 Lithium": "Mining", "Arizona Lithium": "Mining",
+  "Ontario Power Generation": "Energy", "Bruce Power": "Energy", "Hydro One": "Energy", "Manitoba Hydro": "Energy",
+  Metrolinx: "Infrastructure", Hudbay: "Mining", Vale: "Mining", Glencore: "Mining", "Noront Resources": "Mining",
 };
 
 // Engineering and construction firms commonly named on major Western Canadian
@@ -219,4 +284,6 @@ export const KNOWN_ORGANIZATIONS: string[] = [
   "FortisBC", "E3 Lithium", "Arizona Lithium", "Pembina Pipeline", "Wolf Midstream", "Tidewater",
   "Alberta Energy Regulator", "Canada Energy Regulator", "BC Hydro", "Alberta Utilities Commission",
   "Government of Alberta", "Government of British Columbia", "Government of Saskatchewan",
+  "Ontario Power Generation", "Bruce Power", "Hydro One", "Manitoba Hydro", "Metrolinx", "Infrastructure Ontario",
+  "Hudbay", "Vale", "Glencore", "Noront Resources", "Government of Ontario", "Government of Manitoba",
 ];

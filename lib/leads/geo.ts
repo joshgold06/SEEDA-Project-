@@ -1,5 +1,5 @@
 import type { Opportunity } from "../data";
-import { REGION_ABBR, type WesternRegion } from "./taxonomy";
+import { REGION_ABBR, type Region } from "./taxonomy";
 
 // Approximate coordinates [lat, lng] for every place name the extractor can produce
 // (see REGION_TERMS in taxonomy.ts). Accurate to a few kilometres, which is plenty
@@ -27,22 +27,43 @@ export const PLACES: Record<string, [number, number]> = {
   Saskatoon: [52.13, -106.67], Regina: [50.45, -104.61], Estevan: [49.14, -102.99], Weyburn: [49.66, -103.85],
   Lloydminster: [53.28, -110.0], "Moose Jaw": [50.39, -105.53], "Prince Albert": [53.2, -105.75],
   "Swift Current": [50.29, -107.79], Yorkton: [51.21, -102.46], "North Battleford": [52.78, -108.3],
+  // Manitoba
+  Winnipeg: [49.9, -97.14], "Flin Flon": [54.77, -101.88], "The Pas": [53.82, -101.25], "Portage la Prairie": [49.97, -98.29],
+  Steinbach: [49.53, -96.68], Selkirk: [50.14, -96.88], "Lynn Lake": [56.85, -101.05], Churchill: [58.77, -94.17],
+  "Northern Manitoba": [56.5, -96.5],
+  // Ontario
+  Toronto: [43.65, -79.38], Ottawa: [45.42, -75.7], Mississauga: [43.59, -79.64], Hamilton: [43.26, -79.87],
+  Sudbury: [46.49, -81.0], "Thunder Bay": [48.38, -89.25], Sarnia: [42.97, -82.4], Niagara: [43.1, -79.07],
+  Oshawa: [43.9, -78.86], Pickering: [43.84, -79.09], Kincardine: [44.18, -81.63], Timmins: [48.48, -81.33],
+  "Sault Ste. Marie": [46.52, -84.35], Brampton: [43.73, -79.76], Markham: [43.86, -79.34], Oakville: [43.45, -79.68],
+  Barrie: [44.39, -79.69], Guelph: [43.54, -80.25], Welland: [42.99, -79.25], "Ring of Fire": [52.9, -86.3],
+  "Northern Ontario": [49.5, -84.0],
 };
 
 // Used when a lead names a province but no specific place.
-export const PROVINCE_ANCHOR: Record<WesternRegion, [number, number]> = {
+export const PROVINCE_ANCHOR: Record<Region, [number, number]> = {
   Alberta: [57.2, -114.9],
   "British Columbia": [57.0, -127.6],
-  Saskatchewan: [57.2, -106],
+  // Staggered in latitude so the pills beside each other don't overlap on the whole-map view.
+  Saskatchewan: [54.8, -106],
+  Manitoba: [57.6, -98.6],
+  Ontario: [51.5, -86.5],
 };
 
-const REGION_FROM_ABBR = Object.fromEntries(Object.entries(REGION_ABBR).map(([region, abbr]) => [abbr, region])) as Record<string, WesternRegion>;
-const REGION_NAMES = Object.keys(REGION_ABBR) as WesternRegion[];
+const REGION_FROM_ABBR = Object.fromEntries(Object.entries(REGION_ABBR).map(([region, abbr]) => [abbr, region])) as Record<string, Region>;
+const REGION_NAMES = Object.keys(REGION_ABBR) as Region[];
+
+/** The province a lead belongs to, read from the location text the extractor wrote ("Calgary, AB" or "Alberta"). */
+export function regionOf(o: Pick<Opportunity, "location">): Region | null {
+  const withAbbr = o.location.match(/, (AB|BC|SK|MB|ON)$/);
+  if (withAbbr) return REGION_FROM_ABBR[withAbbr[1]] ?? null;
+  return REGION_NAMES.find((r) => r === o.location) ?? null;
+}
 
 export interface MapPlace {
   key: string;
   label: string;
-  region: WesternRegion;
+  region: Region;
   lat: number;
   lng: number;
   /** True when the lead names only a province, so the pin marks the province as a whole. */
@@ -51,7 +72,7 @@ export interface MapPlace {
 
 /** Where a lead belongs on the map, from the location text the extractor wrote. */
 export function placeFor(o: Opportunity): MapPlace | null {
-  const withPlace = o.location.match(/^(.*), (AB|BC|SK)$/);
+  const withPlace = o.location.match(/^(.*), (AB|BC|SK|MB|ON)$/);
   if (withPlace) {
     const region = REGION_FROM_ABBR[withPlace[2]];
     const coords = PLACES[withPlace[1]];
@@ -62,7 +83,7 @@ export function placeFor(o: Opportunity): MapPlace | null {
   return region ? provinceWide(region) : null;
 }
 
-function provinceWide(region: WesternRegion): MapPlace {
+function provinceWide(region: Region): MapPlace {
   const [lat, lng] = PROVINCE_ANCHOR[region];
   return { key: `${region}:province`, label: `${region} (no specific place)`, region, lat, lng, provinceWide: true };
 }
@@ -80,7 +101,7 @@ export const project = (lat: number, lng: number): [number, number] => [(lng - L
 
 // Simplified province outlines as [lat, lng] rings. Stylised on purpose: this is an
 // orientation aid for the pins, not a survey map.
-export const OUTLINES: Record<WesternRegion, [number, number][]> = {
+export const OUTLINES: Record<Region, [number, number][]> = {
   "British Columbia": [
     [60, -139.05], [60, -120], [53.8, -120], [52.9, -118.9], [51.8, -116.9], [50.9, -115.6], [49.8, -114.6], [49, -114.07],
     [49, -123.3], [48.4, -123.4], [48.4, -124.7], [49.3, -126.2], [50.8, -128.4], [51.6, -127.8], [52.6, -128.8],
@@ -88,13 +109,20 @@ export const OUTLINES: Record<WesternRegion, [number, number][]> = {
   ],
   Alberta: [[49, -114.07], [49, -110], [60, -110], [60, -120], [53.8, -120], [52.9, -118.9], [51.8, -116.9], [50.9, -115.6], [49.8, -114.6]],
   Saskatchewan: [[49, -110], [49, -101.4], [60, -102], [60, -110]],
+  Manitoba: [[49, -101.4], [49, -95.15], [53, -95.15], [56.85, -92.2], [58.8, -94.3], [60, -94.8], [60, -102]],
+  // Lakes Superior, Huron, Erie and Ontario are drawn as straight edges; this is an orientation aid.
+  Ontario: [
+    [49, -95.15], [53, -95.15], [56.85, -92.2], [55.3, -82.3], [51.3, -80.5], [48, -79.5], [46.3, -79.5], [45.5, -75.5],
+    [45, -74.7], [44.1, -76.3], [43.6, -79.5], [42.8, -80], [42.05, -82.5], [42.3, -83.1], [43, -82.4], [44.4, -81.7],
+    [45.3, -81.3], [46.3, -84], [46.5, -84.4], [47, -84.9], [48.7, -88.4], [48.3, -89.3], [48, -89.6], [48.3, -92], [49, -94.7],
+  ],
 };
 
-export const outlinePath = (region: WesternRegion) =>
+export const outlinePath = (region: Region) =>
   OUTLINES[region].map(([lat, lng], i) => `${i === 0 ? "M" : "L"}${project(lat, lng).map((n) => n.toFixed(1)).join(",")}`).join(" ") + " Z";
 
 // Cities drawn as small reference labels so the pins have something to be read against.
-export const REFERENCE_CITIES = ["Calgary", "Edmonton", "Fort McMurray", "Vancouver", "Prince George", "Kitimat", "Fort St. John", "Regina", "Saskatoon", "Grande Prairie"];
+export const REFERENCE_CITIES = ["Calgary", "Edmonton", "Fort McMurray", "Vancouver", "Prince George", "Kitimat", "Fort St. John", "Regina", "Saskatoon", "Grande Prairie", "Winnipeg", "Toronto", "Ottawa", "Sudbury", "Thunder Bay"];
 
 export interface ViewBox { x: number; y: number; w: number; h: number }
 
@@ -116,12 +144,14 @@ export const LOWER_MAINLAND = { latMin: 48.95, latMax: 49.85, lngMin: -123.4, ln
 export const inLowerMainland = (p: Pick<MapPlace, "lat" | "lng">) =>
   p.lat >= LOWER_MAINLAND.latMin && p.lat <= LOWER_MAINLAND.latMax && p.lng >= LOWER_MAINLAND.lngMin && p.lng <= LOWER_MAINLAND.lngMax;
 
-export type MapFocus = "all" | WesternRegion | "Lower Mainland";
+export type MapFocus = "all" | Region | "Lower Mainland";
 
 export const FOCUS_BOXES: Record<MapFocus, ViewBox> = {
-  all: fitBox(48.2, 60.4, -139.5, -100.5, 0.02),
+  all: fitBox(41.8, 60.4, -139.5, -74, 0.02),
   Alberta: fitBox(48.8, 60.2, -120.4, -109.6),
   "British Columbia": fitBox(48.2, 60.2, -139.5, -113.5),
   Saskatchewan: fitBox(48.8, 60.2, -110.4, -101.2),
+  Manitoba: fitBox(48.8, 60.2, -102.8, -93.2),
+  Ontario: fitBox(41.8, 57.2, -95.8, -74.2),
   "Lower Mainland": fitBox(LOWER_MAINLAND.latMin, LOWER_MAINLAND.latMax, LOWER_MAINLAND.lngMin, LOWER_MAINLAND.lngMax, 0.04),
 };

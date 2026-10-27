@@ -10,7 +10,7 @@ export interface FactorInfo {
 }
 
 export const FACTORS: FactorInfo[] = [
-  { key: "region", label: "Location", help: "Project is in Alberta, BC or Saskatchewan", bar: "bg-sky-500" },
+  { key: "region", label: "Location", help: "Project is in a province you cover", bar: "bg-sky-500" },
   { key: "signal", label: "Signal type", help: "Contract award, approval, turnaround and so on", bar: "bg-indigo-500" },
   { key: "keywords", label: "EPC keywords", help: "Matches EPCMst's keyword list", bar: "bg-violet-500" },
   { key: "recency", label: "Freshness", help: "How recent the news is", bar: "bg-teal-500" },

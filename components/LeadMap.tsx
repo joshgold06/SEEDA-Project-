@@ -4,7 +4,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Maximize, Minus, Plus } from "lucide-react";
 import type { Opportunity } from "@/lib/data";
 import { FOCUS_BOXES, OUTLINES, outlinePath, PLACES, project, REFERENCE_CITIES, type MapFocus, type MapPlace, type ViewBox } from "@/lib/leads/geo";
-import type { WesternRegion } from "@/lib/leads/taxonomy";
+import { ACTIVE_REGION_SENTENCE, REGION_ABBR, type Region } from "@/lib/leads/taxonomy";
 
 export interface PlaceGroup {
   place: MapPlace;
@@ -32,10 +32,12 @@ const keepOnMap = (b: ViewBox): ViewBox => {
   const cy = clamp(b.y + b.h / 2, WHOLE.y, WHOLE.y + WHOLE.h);
   return { x: cx - b.w / 2, y: cy - b.h / 2, w: b.w, h: b.h };
 };
-const PROVINCE_LABELS: { region: WesternRegion; text: string; at: [number, number] }[] = [
+const PROVINCE_LABELS: { region: Region; text: string; at: [number, number] }[] = [
   { region: "Alberta", text: "ALBERTA", at: [58.6, -114.9] },
   { region: "British Columbia", text: "BRITISH COLUMBIA", at: [58.3, -127.6] },
   { region: "Saskatchewan", text: "SASKATCHEWAN", at: [58.6, -106] },
+  { region: "Manitoba", text: "MANITOBA", at: [58.9, -98.2] },
+  { region: "Ontario", text: "ONTARIO", at: [53.3, -86.5] },
 ];
 
 interface Props {
@@ -222,7 +224,7 @@ export function LeadMap({ groups, focus, selectedKey, highlightKey, onSelect, on
         width={size.w}
         height={size.h}
         role="group"
-        aria-label="Map of lead locations across Alberta, British Columbia and Saskatchewan. Scroll or use the zoom buttons to zoom, drag to move."
+        aria-label={`Map of lead locations across ${ACTIVE_REGION_SENTENCE}. Scroll or use the zoom buttons to zoom, drag to move.`}
         className="block cursor-grab active:cursor-grabbing"
         style={{ touchAction: "none" }}
         onPointerDown={onPointerDown}
@@ -233,7 +235,7 @@ export function LeadMap({ groups, focus, selectedKey, highlightKey, onSelect, on
         onClick={() => onSelect(null)}
         onDoubleClick={(e) => zoomAt(2, toMapPoint(e.clientX, e.clientY))}
       >
-        {(Object.keys(OUTLINES) as WesternRegion[]).map((region) => (
+        {(Object.keys(OUTLINES) as Region[]).map((region) => (
           <path key={region} d={outlinePath(region)} fill={focus === region ? "var(--map-land-active)" : "var(--map-land)"} stroke="var(--map-border)" strokeWidth={1.2} vectorEffect="non-scaling-stroke" strokeLinejoin="round" />
         ))}
 
@@ -241,7 +243,7 @@ export function LeadMap({ groups, focus, selectedKey, highlightKey, onSelect, on
           const [x, y] = project(...at);
           return (
             <text key={region} x={x} y={y} textAnchor="middle" fontSize={px(13)} letterSpacing={px(4)} fill="var(--map-label)" opacity={0.55} fontWeight={600} pointerEvents="none">
-              {text}
+              {zoom < 1.8 ? REGION_ABBR[region] : text}
             </text>
           );
         })}

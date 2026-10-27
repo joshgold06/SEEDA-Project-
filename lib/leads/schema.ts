@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { SIGNAL_TYPES, WESTERN_REGIONS } from "./taxonomy";
+import { ACTIVE_REGION_SENTENCE, REGIONS, SIGNAL_TYPES } from "./taxonomy";
 
 // The "Lead Data Validation Gate" from the company's scope: every candidate lead
 // must pass this before it can enter the pipeline. Regional constraint and
@@ -10,7 +10,7 @@ export const LeadSchema = z.object({
   sourceUrl: z.url("Source link is not a valid URL"),
   publisher: z.string().min(1, "Publisher is missing"),
   publishedAt: z.iso.datetime({ error: "Publish date is invalid" }),
-  region: z.enum(WESTERN_REGIONS, { error: "Not located in Alberta, British Columbia or Saskatchewan" }),
+  region: z.enum(REGIONS, { error: `Not located in ${ACTIVE_REGION_SENTENCE}` }),
   location: z.string().min(2),
   organization: z.string().min(1),
   organizationKnown: z.boolean(),

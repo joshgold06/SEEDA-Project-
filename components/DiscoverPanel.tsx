@@ -5,6 +5,7 @@ import { Loader2, Search } from "lucide-react";
 import { useAuth } from "@/lib/AuthContext";
 import { runDiscover, type DiscoverResult } from "@/lib/leads/client";
 import { SEARCH_PRESETS } from "@/lib/leads/presets";
+import { ACTIVE_REGION_SENTENCE } from "@/lib/leads/taxonomy";
 import { useStore } from "@/lib/store";
 
 function summarize(r: DiscoverResult): string {
@@ -42,7 +43,7 @@ export function DiscoverPanel({ locked = false }: { locked?: boolean }) {
   return (
     <div className="text-left">
       <p className="text-[12.5px] leading-relaxed text-neutral-500">
-        Searches recent public news (30 days, or 90 for contractor awards) for major projects in Alberta, BC and Saskatchewan.
+        Searches recent public news (30 days, or 90 for contractor awards) for major projects in {ACTIVE_REGION_SENTENCE}.
         Each headline is checked, scored against EPCMst&apos;s keywords, and added to your Morning Scan only if it passes.
         Open a lead to find the owner, the contractors and the people on the project.
       </p>

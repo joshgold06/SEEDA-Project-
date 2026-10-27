@@ -1,22 +1,21 @@
 "use client";
 
 import Link from "next/link";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { MapPin, X } from "lucide-react";
+import { ActiveFilterChips, FilterButton } from "@/components/FilterPanel";
 import { LeadMap, tierColor, type PlaceGroup } from "@/components/LeadMap";
 import { Breadcrumbs, Score, SectorIcon, TopBar } from "@/components/ui";
-import { useAuth } from "@/lib/AuthContext";
-import { getPreviousVisit, isNewSince } from "@/lib/lastVisit";
+import { useFilters } from "@/lib/filters";
 import { inLowerMainland, placeFor, type MapFocus } from "@/lib/leads/geo";
+import { ACTIVE_REGIONS, REGION_SHORT } from "@/lib/leads/taxonomy";
 import { STAGES } from "@/lib/data";
 import { useStore } from "@/lib/store";
 import { useWeights } from "@/lib/weights";
 
 const FOCUS_OPTIONS: { value: MapFocus; label: string }[] = [
   { value: "all", label: "All" },
-  { value: "Alberta", label: "Alberta" },
-  { value: "British Columbia", label: "BC" },
-  { value: "Saskatchewan", label: "Saskatchewan" },
+  ...ACTIVE_REGIONS.map((r) => ({ value: r as MapFocus, label: REGION_SHORT[r] })),
   { value: "Lower Mainland", label: "Vancouver area" },
 ];
 
@@ -26,30 +25,38 @@ const chip = (active: boolean) =>
 export default function MapPage() {
   const { opportunities, loaded } = useStore();
   const { scoreOf } = useWeights();
-  const { user } = useAuth();
-  const [focus, setFocus] = useState<MapFocus>("all");
-  const [minScore, setMinScore] = useState(0);
-  const [newOnly, setNewOnly] = useState(false);
+  const { filters, setFilters, matches } = useFilters();
+  const [closeUp, setCloseUp] = useState(false);
   const [selectedKey, setSelectedKey] = useState<string | null>(null);
   const [hoverKey, setHoverKey] = useState<string | null>(null);
-  const previousVisit = user ? getPreviousVisit(user.id) : null;
+
+  // The province chips are the same province filter as the one in the Filters panel: pick one
+  // here and it is applied everywhere, pick it there and the map zooms to it.
+  const single = filters.regions.length === 1 ? filters.regions[0] : null;
+  const focus: MapFocus = closeUp && single === "British Columbia" ? "Lower Mainland" : (single ?? "all");
+  useEffect(() => {
+    if (single !== "British Columbia") setCloseUp(false);
+  }, [single]);
+  const chooseFocus = (value: MapFocus) => {
+    setCloseUp(value === "Lower Mainland");
+    setFilters((f) => ({ ...f, regions: value === "all" ? [] : value === "Lower Mainland" ? ["British Columbia"] : [value] }));
+    setSelectedKey(null);
+  };
+
+  const mappable = useMemo(() => opportunities.filter((o) => o.inScan && !o.dismissed), [opportunities]);
 
   const { groups, leadCount, unmapped } = useMemo(() => {
     const byPlace = new Map<string, PlaceGroup>();
     let count = 0;
     let missing = 0;
-    for (const o of opportunities) {
-      if (!o.inScan || o.dismissed) continue;
-      if (scoreOf(o) < minScore) continue;
-      if (newOnly && !isNewSince(o.createdAt, previousVisit)) continue;
+    for (const o of mappable) {
+      if (!matches(o)) continue;
       const place = placeFor(o);
       if (!place) {
         missing++;
         continue;
       }
-      if (focus === "Lower Mainland") {
-        if (!inLowerMainland(place)) continue;
-      } else if (focus !== "all" && place.region !== focus) continue;
+      if (focus === "Lower Mainland" && !inLowerMainland(place)) continue;
       const group = byPlace.get(place.key) ?? { place, leads: [], topScore: 0 };
       group.leads.push(o);
       group.topScore = Math.max(group.topScore, scoreOf(o));
@@ -59,7 +66,7 @@ export default function MapPage() {
     const list = [...byPlace.values()].sort((a, b) => b.leads.length - a.leads.length || b.topScore - a.topScore);
     list.forEach((g) => g.leads.sort((a, b) => scoreOf(b) - scoreOf(a)));
     return { groups: list, leadCount: count, unmapped: missing };
-  }, [opportunities, scoreOf, minScore, newOnly, previousVisit, focus]);
+  }, [mappable, scoreOf, matches, focus]);
 
   const selected = groups.find((g) => g.place.key === selectedKey) ?? null;
   const maxCount = Math.max(1, ...groups.map((g) => g.leads.length));
@@ -70,32 +77,18 @@ export default function MapPage() {
 
       <div className="flex flex-wrap items-center gap-2 px-6 pt-4">
         <div className="flex flex-wrap gap-2" role="group" aria-label="Zoom to a province">
-          {FOCUS_OPTIONS.map((o) => (
-            <button key={o.value} onClick={() => { setFocus(o.value); setSelectedKey(null); }} aria-pressed={focus === o.value} className={chip(focus === o.value)}>{o.label}</button>
-          ))}
+          {FOCUS_OPTIONS.map((o) => {
+            const active = o.value === "all" ? filters.regions.length === 0 : focus === o.value;
+            return <button key={o.value} onClick={() => chooseFocus(o.value)} aria-pressed={active} className={chip(active)}>{o.label}</button>;
+          })}
         </div>
         <span className="mx-1 hidden h-5 w-px bg-line sm:block" />
-        <label className="flex items-center gap-2 text-[12px] text-neutral-600">
-          Min score
-          <select value={minScore} onChange={(e) => setMinScore(Number(e.target.value))} className="h-[28px] rounded border border-line bg-surface px-2 text-[12px] text-ink">
-            <option value={0}>Any</option>
-            <option value={50}>50+</option>
-            <option value={65}>65+</option>
-          </select>
-        </label>
-        <button
-          onClick={() => setNewOnly((v) => !v)}
-          disabled={!previousVisit}
-          aria-pressed={newOnly}
-          title={previousVisit ? "Only leads added since your last visit" : "Available after your second visit"}
-          className={`${chip(newOnly)} disabled:cursor-not-allowed disabled:opacity-50`}
-        >
-          New only
-        </button>
+        <FilterButton leads={mappable} panelWidth={340} />
         <span className="ml-auto text-[12px] text-neutral-500" aria-live="polite">
           {loaded ? `${leadCount} lead${leadCount === 1 ? "" : "s"} at ${groups.length} place${groups.length === 1 ? "" : "s"}` : "Loading…"}
         </span>
       </div>
+      <ActiveFilterChips className="px-6 pt-2.5" />
 
       <div className="flex min-h-0 flex-1 flex-col gap-4 p-6 lg:flex-row">
         <div className="min-h-[420px] flex-1">
@@ -103,7 +96,7 @@ export default function MapPage() {
             <div className="grid h-full min-h-[420px] place-items-center rounded-xl border border-dashed border-line text-center">
               <div className="max-w-xs px-6">
                 <MapPin className="mx-auto size-7 text-neutral-300" />
-                <p className="mt-3 text-[13px] text-neutral-500">No leads match these filters. Widen the score or province, or run a scan from the Morning Scan page.</p>
+                <p className="mt-3 text-[13px] text-neutral-500">No leads match these filters. Clear one of them, or run a scan from the Morning Scan page.</p>
               </div>
             </div>
           ) : (

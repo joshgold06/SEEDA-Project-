@@ -6,10 +6,12 @@ import { useEffect, useMemo, useState } from "react";
 import { Eye, Search } from "lucide-react";
 import { Opportunity, STAGES } from "@/lib/data";
 import { useAuth } from "@/lib/AuthContext";
+import { useFilters } from "@/lib/filters";
 import { isTyping } from "@/lib/keys";
 import { getPreviousVisit, isNewSince } from "@/lib/lastVisit";
 import { useStore } from "@/lib/store";
 import { useWeights } from "@/lib/weights";
+import { ActiveFilterChips, FilterButton } from "./FilterPanel";
 import { useToast } from "./Toast";
 import { Score, SectorIcon, Tag } from "./ui";
 
@@ -28,7 +30,9 @@ export function SignalList({ mode }: { mode: "scan" | "shortlist" }) {
   const [sort, setSort] = useState<SortKey | null>(null);
   const previousVisit = user ? getPreviousVisit(user.id) : null;
 
-  const base = mode === "scan" ? opportunities.filter((o) => o.inScan) : opportunities.filter((o) => o.stage);
+  const { matches, activeCount } = useFilters();
+  const universe = mode === "scan" ? opportunities.filter((o) => o.inScan) : opportunities.filter((o) => o.stage);
+  const base = universe.filter(matches);
   const hrefFor = (o: Opportunity) => (mode === "scan" ? `/scan/${o.id}` : `/shortlist/${o.id}`);
 
   const items = useMemo(() => {
@@ -83,7 +87,9 @@ export function SignalList({ mode }: { mode: "scan" | "shortlist" }) {
   const heading = mode === "scan" ? "Morning Scan" : "Shortlist";
   const liveCount = base.filter((o) => !o.dismissed).length;
   const newCount = mode === "scan" ? base.filter((o) => !o.dismissed && isNewSince(o.createdAt, previousVisit)).length : 0;
-  const count = mode === "scan" ? (newCount ? `${newCount} new` : `${liveCount} leads`) : `${base.length} spotted`;
+  const count = activeCount
+    ? `${mode === "scan" ? liveCount : base.length} of ${mode === "scan" ? universe.filter((o) => !o.dismissed).length : universe.length}`
+    : mode === "scan" ? (newCount ? `${newCount} new` : `${liveCount} leads`) : `${base.length} spotted`;
 
   return (
     <aside className="signal-list no-print sticky top-0 flex h-screen w-[316px] shrink-0 flex-col border-r border-line bg-surface">
@@ -92,10 +98,14 @@ export function SignalList({ mode }: { mode: "scan" | "shortlist" }) {
           <h2 className="text-[14px] font-semibold">{heading}</h2>
           <span className={`rounded-full px-2.5 py-0.5 text-[11px] font-medium ${mode === "scan" ? "bg-brand-soft text-brand-dark" : "bg-neutral-100 text-neutral-600"}`}>{count}</span>
         </div>
-        <label className="mt-3 flex h-[32px] items-center gap-2 rounded-lg border border-line bg-neutral-50 px-2.5 text-neutral-500 focus-within:border-brand">
-          <Search className="size-3.5" />
-          <input value={query} onChange={(e) => setQuery(e.target.value)} placeholder={mode === "scan" ? "Search leads" : "Filter shortlist"} className="w-full bg-transparent text-[12.5px] text-ink outline-none placeholder:text-neutral-400" />
-        </label>
+        <div className="mt-3 flex items-center gap-2">
+          <label className="flex h-[32px] min-w-0 flex-1 items-center gap-2 rounded-lg border border-line bg-neutral-50 px-2.5 text-neutral-500 focus-within:border-brand">
+            <Search className="size-3.5 shrink-0" />
+            <input value={query} onChange={(e) => setQuery(e.target.value)} placeholder={mode === "scan" ? "Search leads" : "Filter shortlist"} className="w-full min-w-0 bg-transparent text-[12.5px] text-ink outline-none placeholder:text-neutral-400" />
+          </label>
+          <FilterButton leads={universe.filter((o) => !o.dismissed)} align="right" panelWidth={284} />
+        </div>
+        <ActiveFilterChips className="mt-2" />
         {mode === "scan" && (
           <div className="mt-2.5 flex items-center gap-1.5 text-[11.5px] text-neutral-500">
             Sort by
@@ -149,7 +159,7 @@ export function SignalList({ mode }: { mode: "scan" | "shortlist" }) {
             );
           })}
         {loaded && items.length === 0 && (
-          <li className="px-4 py-10 text-center text-[12px] text-neutral-500">{mode === "scan" ? (query ? "No leads match your search." : "No leads yet. They'll appear here as searches finish.") : "Nothing shortlisted yet."}</li>
+          <li className="px-4 py-10 text-center text-[12px] text-neutral-500">{query || activeCount ? `No ${mode === "scan" ? "leads" : "shortlisted leads"} match ${activeCount ? "these filters" : "your search"}.` : mode === "scan" ? "No leads yet. They'll appear here as searches finish." : "Nothing shortlisted yet."}</li>
         )}
       </ul>
       <p className="border-t border-line px-4 py-2 text-[10.5px] text-neutral-500">
