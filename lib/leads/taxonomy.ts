@@ -242,6 +242,8 @@ export const NOISE_TERMS: string[] = [
   "opinion", "editorial", "horoscope", "lottery", "recipe", "feature:", "front page", "podcast",
   "what it means", "explained", "should the", "ceo says", "interview", "column", "letters",
   "surplus", "deficit", "budget", "economist", "commentary", "byelection",
+  // Ontario's regulated online gambling market produces "approval in Ontario" and "content pipeline" headlines.
+  "betting", "esports", "casino", "igaming",
 ];
 
 // Companies whose name alone tells us the industry, for headlines with no other industry word.

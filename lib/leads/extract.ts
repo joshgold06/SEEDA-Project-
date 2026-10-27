@@ -23,10 +23,14 @@ function has(text: string, term: string): boolean {
 
 const found = (text: string, terms: string[]) => terms.filter((t) => has(text, t));
 
-function scanRegion(text: string): { region?: Region; place?: string } {
+// Outlets named after Toronto or Ottawa ("Toronto Star", "Ottawa Citizen") cover the whole country,
+// so their name says nothing about where a story is.
+const NATIONAL_OUTLET_PLACES = new Set(["Toronto", "Ottawa"]);
+
+function scanRegion(text: string, ignorePlaces?: Set<string>): { region?: Region; place?: string } {
   let best: { region: Region; hits: number; place?: string } | undefined;
   for (const region of ACTIVE_REGIONS) {
-    const hits = REGION_TERMS[region].filter((r) => has(text, r.term));
+    const hits = REGION_TERMS[region].filter((r) => has(text, r.term) && !(r.place && ignorePlaces?.has(r.place)));
     if (!hits.length) continue;
     if (!best || hits.length > best.hits) best = { region, hits: hits.length, place: hits.find((h) => h.place)?.place };
   }
@@ -38,7 +42,7 @@ function scanRegion(text: string): { region?: Region; place?: string } {
 function detectRegion(title: string, publisher: string): { region?: Region; place?: string; viaPublisher: boolean } {
   const fromTitle = scanRegion(title);
   if (fromTitle.region) return { ...fromTitle, viaPublisher: false };
-  return { ...scanRegion(publisher), viaPublisher: true };
+  return { ...scanRegion(publisher, NATIONAL_OUTLET_PLACES), viaPublisher: true };
 }
 
 // One company, one row: a headline may say "CNRL" or "Canadian Natural", but the organizations
