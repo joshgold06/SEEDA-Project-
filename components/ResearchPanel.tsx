@@ -9,6 +9,7 @@ import type { Opportunity } from "@/lib/data";
 import { timeAgo } from "@/lib/outreach";
 import { chainCompanies, sameCompany } from "@/lib/research/merge";
 import { runResearch } from "@/lib/research/client";
+import { useResearchQueue } from "@/lib/research/queue";
 import { domainOf, safeHttpUrl, type Finding } from "@/lib/research/types";
 import { useStore } from "@/lib/store";
 
@@ -40,6 +41,8 @@ export function ResearchPanel({ opp }: { opp: Opportunity }) {
   const research = researchFor(opp.id);
   const contacts = contactsFor(opp.id);
 
+  const { busy: queued } = useResearchQueue();
+  const inBackground = queued.has(opp.id);
   const [running, setRunning] = useState(false);
   const [step, setStep] = useState(0);
   const [error, setError] = useState<string | null>(null);
@@ -59,7 +62,7 @@ export function ResearchPanel({ opp }: { opp: Opportunity }) {
   }, [opp]);
 
   const run = async () => {
-    if (!session || running) return;
+    if (!session || running || inBackground) return;
     setRunning(true);
     setError(null);
     const outcome = await runResearch(session.access_token, opp.id);
@@ -163,21 +166,21 @@ export function ResearchPanel({ opp }: { opp: Opportunity }) {
             Reads public web pages for the owner, the contractors and the named people on this project. Every finding quotes the sentence it came from and links to the page. Nothing is added until you accept it.
           </p>
         </div>
-        <Button variant="primary" onClick={run} disabled={running || !session}>
-          {running ? <Loader2 className="size-3.5 animate-spin" /> : <Search className="size-3.5" />}
-          {running ? "Researching…" : research ? "Run again" : "Research this lead"}
+        <Button variant="primary" onClick={run} disabled={running || inBackground || !session}>
+          {running || inBackground ? <Loader2 className="size-3.5 animate-spin" /> : <Search className="size-3.5" />}
+          {running || inBackground ? "Researching…" : research ? "Run again" : "Research this lead"}
         </Button>
       </div>
 
-      {running && (
+      {(running || inBackground) && (
         <p role="status" className="mt-3 flex items-center gap-2 text-[12px] text-neutral-600">
           <Loader2 className="size-3.5 animate-spin text-brand" />
-          {STEPS[step]} This takes about 20 to 40 seconds.
+          {running ? `${STEPS[step]} This takes about 20 to 40 seconds.` : "Researching this lead in the background. It will appear here when it's done, or in a moment if it's waiting its turn."}
         </p>
       )}
       {error && <p role="alert" className="mt-3 text-[12px] text-red-600">{error}</p>}
 
-      {research && !running && (
+      {research && !running && !inBackground && (
         <div className="mt-4">
           <p className="text-[11px] text-neutral-500">
             Researched {timeAgo(research.researchedAt)} · {research.doc.sources.length} page{research.doc.sources.length === 1 ? "" : "s"} read · {all.length} finding{all.length === 1 ? "" : "s"}

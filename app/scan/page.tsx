@@ -8,7 +8,10 @@ import { EpcmstMark } from "@/components/EpcmstLogo";
 import { TunePanel, useTuneSummary } from "@/components/TunePanel";
 import { Breadcrumbs, TopBar } from "@/components/ui";
 import { useAuth } from "@/lib/AuthContext";
+import { useFilters } from "@/lib/filters";
 import { getPreviousVisit, isNewSince } from "@/lib/lastVisit";
+import { pickDistinct } from "@/lib/research/pick";
+import { useResearchQueue } from "@/lib/research/queue";
 import { ACTIVE_REGION_SENTENCE } from "@/lib/leads/taxonomy";
 import { useStore } from "@/lib/store";
 import { useAutoRefresh } from "@/lib/useAutoRefresh";
@@ -23,7 +26,17 @@ export default function ScanHome() {
   const { scoreOf } = useWeights();
   const tuneSummary = useTuneSummary();
 
+  const { matches } = useFilters();
+  const { batch: researchBatch, enqueue: enqueueResearch, busy: researching } = useResearchQueue();
+  const { researchFor } = useStore();
+
   const signals = opportunities.filter((o) => o.inScan && !o.dismissed);
+  // The five best leads (under the current filters) that haven't been researched yet.
+  // Several outlets often report one project, so near-duplicates are skipped to cover five different projects.
+  const topToResearch = pickDistinct(
+    signals.filter((o) => o.type === "News" && matches(o) && !researchFor(o.id) && !researching.has(o.id)).sort((a, b) => scoreOf(b) - scoreOf(a)),
+    5
+  );
   const refresh = useAutoRefresh(signals.length);
   const previousVisit = user ? getPreviousVisit(user.id) : null;
   const newCount = signals.filter((o) => isNewSince(o.createdAt, previousVisit)).length;
@@ -90,6 +103,26 @@ export default function ScanHome() {
                     <RefreshCw className="size-3" />
                     Scan all searches now
                   </button>
+                  {researchBatch ? (
+                    <span className="inline-flex items-center gap-1.5 rounded-full bg-white/15 px-3 py-1.5 font-medium text-white" role="status">
+                      {researchBatch.done + researchBatch.failed < researchBatch.total && !researchBatch.stoppedBecause && <Loader2 className="size-3 animate-spin" />}
+                      {researchBatch.stoppedBecause
+                        ? `Research stopped: ${researchBatch.stoppedBecause} ${researchBatch.done} of ${researchBatch.total} done.`
+                        : researchBatch.done + researchBatch.failed >= researchBatch.total
+                          ? `Research finished: ${researchBatch.done} of ${researchBatch.total} done${researchBatch.failed ? `, ${researchBatch.failed} failed` : ""}.`
+                          : `Researching ${researchBatch.done + researchBatch.failed + 1} of ${researchBatch.total}…`}
+                    </span>
+                  ) : (
+                    <button
+                      onClick={() => enqueueResearch(topToResearch.map((o) => o.id), { batch: true })}
+                      disabled={topToResearch.length === 0}
+                      title={topToResearch.length ? `Researches your ${topToResearch.length} best leads that haven't been researched yet. Uses ${topToResearch.length * 3} searches.` : "Every top lead has already been researched."}
+                      className="inline-flex items-center gap-1.5 rounded-full bg-white/15 px-3 py-1.5 font-medium text-white transition-colors hover:bg-white/25 disabled:cursor-not-allowed disabled:opacity-50"
+                    >
+                      <Search className="size-3" />
+                      Research top {Math.max(1, topToResearch.length)}
+                    </button>
+                  )}
                 </div>
               )
             )}

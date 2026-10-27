@@ -9,6 +9,7 @@ import { AppShell } from "@/components/AppShell";
 import { ToastProvider } from "@/components/Toast";
 import { AuthProvider } from "@/lib/AuthContext";
 import { FiltersProvider } from "@/lib/filters";
+import { ResearchQueueProvider } from "@/lib/research/queue";
 import { StoreProvider } from "@/lib/store";
 import { ThemeProvider } from "@/lib/theme";
 import { THEME_INIT_SCRIPT } from "@/lib/themeScript";
@@ -31,7 +32,9 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
               <WeightsProvider>
                 <ToastProvider>
                   <FiltersProvider>
-                    <AppShell>{children}</AppShell>
+                    <ResearchQueueProvider>
+                      <AppShell>{children}</AppShell>
+                    </ResearchQueueProvider>
                   </FiltersProvider>
                 </ToastProvider>
               </WeightsProvider>
