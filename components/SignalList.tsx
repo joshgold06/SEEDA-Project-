@@ -1,14 +1,16 @@
 "use client";
 
 import Link from "next/link";
-import { usePathname } from "next/navigation";
-import { useMemo, useState } from "react";
+import { usePathname, useRouter } from "next/navigation";
+import { useEffect, useMemo, useState } from "react";
 import { Eye, Search } from "lucide-react";
 import { Opportunity, STAGES } from "@/lib/data";
 import { useAuth } from "@/lib/AuthContext";
+import { isTyping } from "@/lib/keys";
 import { getPreviousVisit, isNewSince } from "@/lib/lastVisit";
 import { useStore } from "@/lib/store";
 import { useWeights } from "@/lib/weights";
+import { useToast } from "./Toast";
 import { Score, SectorIcon, Tag } from "./ui";
 
 type SortKey = "source" | "score" | "deadline";
@@ -16,10 +18,12 @@ type SortKey = "source" | "score" | "deadline";
 const OWNER_UNKNOWN = "Not identified in headline";
 
 export function SignalList({ mode }: { mode: "scan" | "shortlist" }) {
-  const { opportunities, loaded } = useStore();
+  const { opportunities, loaded, update } = useStore();
   const { scoreOf } = useWeights();
   const { user } = useAuth();
   const pathname = usePathname();
+  const router = useRouter();
+  const toast = useToast();
   const [query, setQuery] = useState("");
   const [sort, setSort] = useState<SortKey | null>(null);
   const previousVisit = user ? getPreviousVisit(user.id) : null;
@@ -36,6 +40,45 @@ export function SignalList({ mode }: { mode: "scan" | "shortlist" }) {
     return [...list].sort((a, b) => Number(a.dismissed) - Number(b.dismissed));
     // scoreOf changes whenever the weights do, which is what re-ranks the list
   }, [base, query, sort, mode, scoreOf]);
+
+  // Keyboard triage: J/K move through the list, S shortlists, X marks not relevant, W watches.
+  // The handler is re-attached on every change so it always sees the current list and lead.
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.ctrlKey || e.metaKey || e.altKey || isTyping(e.target) || document.querySelector('[role="dialog"]')) return;
+      const key = e.key.toLowerCase();
+      if (!["j", "k", "s", "x", "w"].includes(key)) return;
+      const index = items.findIndex((o) => hrefFor(o) === pathname);
+      const current = index >= 0 ? items[index] : undefined;
+
+      if (key === "j" || key === "k") {
+        if (items.length === 0) return;
+        const next = index < 0 ? 0 : Math.min(Math.max(index + (key === "j" ? 1 : -1), 0), items.length - 1);
+        e.preventDefault();
+        router.push(hrefFor(items[next]));
+        return;
+      }
+      if (!current || (key === "s" && mode !== "scan")) return;
+      e.preventDefault();
+      const previous = { stage: current.stage, watched: current.watched, dismissed: current.dismissed };
+      const act = (patch: Partial<Opportunity>, message: string) => {
+        update(current.id, patch);
+        toast.push({ message, onAction: () => update(current.id, previous) });
+      };
+      if (key === "s") act({ stage: current.stage ? null : "spotted", dismissed: false }, current.stage ? "Removed from your shortlist" : "Added to your shortlist");
+      else if (key === "w") act({ watched: !current.watched }, current.watched ? "Stopped watching this lead" : "Now watching this lead");
+      else {
+        act({ dismissed: !current.dismissed }, current.dismissed ? "Restored to your list" : "Marked not relevant");
+        // After marking one not relevant, move on to the next lead that still matters.
+        if (!current.dismissed) {
+          const next = items.slice(index + 1).find((o) => !o.dismissed) ?? items.slice(0, index).reverse().find((o) => !o.dismissed);
+          if (next) router.push(hrefFor(next));
+        }
+      }
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  });
 
   const heading = mode === "scan" ? "Morning Scan" : "Shortlist";
   const liveCount = base.filter((o) => !o.dismissed).length;
@@ -109,6 +152,15 @@ export function SignalList({ mode }: { mode: "scan" | "shortlist" }) {
           <li className="px-4 py-10 text-center text-[12px] text-neutral-500">{mode === "scan" ? (query ? "No leads match your search." : "No leads yet. They'll appear here as searches finish.") : "Nothing shortlisted yet."}</li>
         )}
       </ul>
+      <p className="border-t border-line px-4 py-2 text-[10.5px] text-neutral-500">
+        {(mode === "scan" ? [["J", "K"], ["S"], ["X"]] : [["J", "K"], ["X"]]).map((keys, i) => (
+          <span key={i} className="mr-2.5 inline-flex items-center gap-1">
+            {keys.map((k) => <kbd key={k} className="rounded border border-line bg-neutral-50 px-1 font-mono text-[9.5px] text-ink">{k}</kbd>)}
+            <span>{keys.length === 2 ? "move" : keys[0] === "S" ? "shortlist" : "dismiss"}</span>
+          </span>
+        ))}
+        <button onClick={() => window.dispatchEvent(new KeyboardEvent("keydown", { key: "?" }))} className="text-brand hover:underline">more</button>
+      </p>
     </aside>
   );
 }

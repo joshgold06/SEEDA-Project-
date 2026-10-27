@@ -10,7 +10,7 @@ export const CONTRACTOR_PREFIX = "Contractors: ";
 
 const ROLES = '"project manager" OR "project director" OR procurement OR "engineering manager" OR "construction manager"';
 
-const linkedInPeople = (org: string) =>
+export const linkedInPeople = (org: string) =>
   `https://www.linkedin.com/search/results/people/?keywords=${encodeURIComponent(`"${org}" (${ROLES})`)}`;
 const google = (query: string) => `https://www.google.com/search?q=${encodeURIComponent(query)}`;
 

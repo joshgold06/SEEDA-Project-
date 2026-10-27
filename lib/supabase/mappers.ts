@@ -114,6 +114,8 @@ export function rowToOpportunity(row: OpportunityRow, action?: LeadActionRow): O
     assignee: row.assignee,
     contactRole: row.contact_role ?? undefined,
     createdAt: row.created_at,
+    // When this user last changed their stage, watch or not-relevant choice; drives "stale" leads.
+    actedAt: action?.updated_at,
   };
 }
 

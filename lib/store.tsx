@@ -1,6 +1,7 @@
 "use client";
 
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from "react";
+import { Contact, contactToRow, NewContact, rowToContact, type ContactRow } from "./contacts";
 import { Opportunity, Stage } from "./data";
 import { Draft, generateDraft } from "./outreach";
 import { useAuth } from "./AuthContext";
@@ -21,6 +22,7 @@ import {
 interface State {
   opportunities: Opportunity[];
   drafts: Record<string, Draft>;
+  contacts: Contact[];
 }
 
 interface Store extends State {
@@ -31,10 +33,14 @@ interface Store extends State {
   addLead: (lead: Opportunity) => void;
   saveDraft: (id: string, draft: Draft) => void;
   getDraft: (id: string) => Draft;
+  contactsFor: (opportunityId: string) => Contact[];
+  /** Resolves false if the contact could not be saved (it is then taken back off the screen). */
+  addContact: (contact: NewContact) => Promise<boolean>;
+  removeContact: (id: string) => void;
   reset: () => void;
 }
 
-const EMPTY_STATE: State = { opportunities: [], drafts: {} };
+const EMPTY_STATE: State = { opportunities: [], drafts: {}, contacts: [] };
 // The only fields a person changes about a lead; they are saved to lead_actions, not to the lead.
 const ACTION_KEYS: (keyof Opportunity)[] = ["stage", "watched", "dismissed"];
 
@@ -77,9 +83,15 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
       const actionById = new Map((actions.data as LeadActionRow[]).map((a) => [a.opportunity_id, a]));
       const draftMap: Record<string, Draft> = {};
       for (const row of drafts.data ?? []) draftMap[row.opportunity_id] = rowToDraft(row);
+
+      // Saved contacts are an extra: if they can't be read, the rest of the app still loads.
+      const savedContacts = await supabase.from("lead_contacts").select("*").order("created_at", { ascending: true });
+      if (savedContacts.error) console.warn("EPCMst: could not load saved contacts.", savedContacts.error);
+
       commit({
         opportunities: (leads.data as unknown as OpportunityRow[]).map((row) => rowToOpportunity(row, actionById.get(row.id))),
         drafts: draftMap,
+        contacts: ((savedContacts.data ?? []) as ContactRow[]).map(rowToContact),
       });
     } catch (err) {
       console.warn("EPCMst: could not load from Supabase.", err);
@@ -154,6 +166,42 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
     [supabase, commit]
   );
 
+  const addContact = useCallback(
+    async (input: NewContact) => {
+      const contact: Contact = { ...input, id: crypto.randomUUID(), createdAt: Date.now() };
+      commit({ ...stateRef.current, contacts: [...stateRef.current.contacts, contact] });
+      const uid = userIdRef.current;
+      if (!supabase || !uid) return true;
+      const { error } = await supabase.from("lead_contacts").insert(contactToRow(uid, contact));
+      if (error) {
+        console.warn("EPCMst: failed to save contact.", error);
+        commit({ ...stateRef.current, contacts: stateRef.current.contacts.filter((c) => c.id !== contact.id) });
+        return false;
+      }
+      return true;
+    },
+    [supabase, commit]
+  );
+
+  const removeContact = useCallback(
+    (id: string) => {
+      const removed = stateRef.current.contacts.find((c) => c.id === id);
+      if (!removed) return;
+      commit({ ...stateRef.current, contacts: stateRef.current.contacts.filter((c) => c.id !== id) });
+      if (!supabase || !userIdRef.current) return;
+      supabase
+        .from("lead_contacts")
+        .delete()
+        .eq("id", id)
+        .then(({ error }) => {
+          if (!error) return;
+          console.warn("EPCMst: failed to remove contact.", error);
+          commit({ ...stateRef.current, contacts: [...stateRef.current.contacts, removed] });
+        });
+    },
+    [supabase, commit]
+  );
+
   const store = useMemo<Store>(
     () => ({
       ...state,
@@ -164,9 +212,12 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
       addLead,
       saveDraft,
       getDraft: (id) => state.drafts[id] ?? generateDraft(state.opportunities.find((o) => o.id === id)!, senderName),
+      contactsFor: (opportunityId) => state.contacts.filter((c) => c.opportunityId === opportunityId),
+      addContact,
+      removeContact,
       reset: () => void loadFromSupabase(),
     }),
-    [state, loaded, update, addLead, saveDraft, loadFromSupabase, senderName]
+    [state, loaded, update, addLead, saveDraft, addContact, removeContact, loadFromSupabase, senderName]
   );
 
   return <StoreContext.Provider value={store}>{children}</StoreContext.Provider>;
