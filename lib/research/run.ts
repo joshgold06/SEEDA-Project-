@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { callGeminiJson, GeminiError } from "../ai/gemini";
 import { PUBLIC_OWNER_PATTERN } from "../leads/taxonomy";
 import { findingId, safeHttpUrl, type Finding, type FindingsDoc, type Source } from "./types";
 
@@ -41,13 +42,12 @@ export interface SourceText {
 const MAX_SOURCES = 10;
 const MAX_SOURCE_CHARS = 5000;
 const SEARCH_TIMEOUT_MS = 20_000;
-const AI_TIMEOUT_MS = 45_000;
 
 // --- Reading the web -----------------------------------------------------------------------
 
 /** The headline without a trailing "- Publisher" and trimmed to something a search engine handles well. */
 const shortTitle = (title: string, max = 110) => {
-  const t = title.replace(/\s+-\s+[^-]{2,40}$/, "").replace(/["â€œâ€]/g, "").trim();
+  const t = title.replace(/\s+-\s+[^-]{2,40}$/, "").replace(/["Ã¢â‚¬Å“Ã¢â‚¬Â]/g, "").trim();
   return t.length > max ? t.slice(0, max).replace(/\s+\S*$/, "") : t;
 };
 
@@ -167,63 +167,12 @@ export function buildPrompt(lead: ResearchLead, sources: SourceText[]): string {
   return `PROJECT HEADLINE: ${lead.title}\nPublisher: ${lead.publisher ?? "unknown"}\nLocation: ${lead.location ?? "unknown"}\n${known}\n\nSOURCES\n\n${pages}`;
 }
 
-// Google's free models answer "high demand" (503) in bursts, so a busy model is skipped for the next one.
-const FALLBACK_MODELS = ["gemini-3.5-flash-lite", "gemini-3.8-flash", "gemini-3.1-flash-lite"];
-const AI_TOTAL_MS = 42_000;
-const BUSY_STATUSES = new Set([429, 500, 503, 504, 404]);
-
 async function callGemini(prompt: string, keys: ResearchKeys): Promise<unknown> {
-  const body = JSON.stringify({
-    systemInstruction: { parts: [{ text: SYSTEM }] },
-    contents: [{ role: "user", parts: [{ text: prompt }] }],
-    generationConfig: { response_mime_type: "application/json", response_schema: RESPONSE_SCHEMA },
-  });
-  const models = [...new Set([keys.model, ...FALLBACK_MODELS])];
-  const deadline = Date.now() + AI_TOTAL_MS;
-
-  let res: Response | null = null;
-  let timedOut = false;
-  outer: for (let pass = 0; pass < 2; pass++) {
-    for (const model of models) {
-      const left = deadline - Date.now();
-      if (left < 3000) break outer;
-      try {
-        res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(model)}:generateContent`, {
-          method: "POST",
-          headers: { "Content-Type": "application/json", "x-goog-api-key": keys.gemini },
-          body,
-          signal: AbortSignal.timeout(Math.min(AI_TIMEOUT_MS, left)),
-          cache: "no-store",
-        });
-      } catch {
-        timedOut = true;
-        res = null;
-        continue;
-      }
-      if (BUSY_STATUSES.has(res.status)) continue;
-      break outer;
-    }
-    await new Promise((r) => setTimeout(r, 1500));
-  }
-
-  if (!res || BUSY_STATUSES.has(res.status)) {
-    throw new ResearchError(timedOut && !res ? "The AI model didn't answer in time. Try again." : "The AI model is busy right now. Try again in a minute.", 503, "ai_failed");
-  }
-  if (res.status === 400 || res.status === 401 || res.status === 403) throw new ResearchError("The AI service rejected the request. Check GEMINI_API_KEY and GEMINI_MODEL.", 502, "not_configured");
-  if (!res.ok) throw new ResearchError(`The AI model failed (${res.status}).`, 502, "ai_failed");
-
-  const data = (await res.json().catch(() => null)) as {
-    candidates?: { content?: { parts?: { text?: string; thought?: boolean }[] } }[];
-    promptFeedback?: { blockReason?: string };
-  } | null;
-  if (data?.promptFeedback?.blockReason) throw new ResearchError("The AI model declined to read these pages.", 502, "ai_failed");
-  // Newer models may send their reasoning as separate parts flagged "thought"; only the answer is wanted.
-  const text = data?.candidates?.[0]?.content?.parts?.filter((p) => !p.thought).map((p) => p.text ?? "").join("") ?? "";
-  if (!text.trim()) throw new ResearchError("The AI model returned nothing.", 502, "ai_failed");
   try {
-    return JSON.parse(text.replace(/^```(?:json)?\s*|\s*```$/g, ""));
-  } catch {
-    throw new ResearchError("The AI model's answer couldn't be read.", 502, "ai_failed");
+    return await callGeminiJson({ system: SYSTEM, prompt, schema: RESPONSE_SCHEMA, apiKey: keys.gemini, model: keys.model });
+  } catch (err) {
+    if (err instanceof GeminiError) throw new ResearchError(err.message, err.status, err.kind === "not_configured" ? "not_configured" : "ai_failed");
+    throw err;
   }
 }
 // --- Keeping only what can be proved ------------------------------------------------------
@@ -232,9 +181,9 @@ async function callGemini(prompt: string, keys: ResearchKeys): Promise<unknown> 
 export const norm = (s: string) =>
   s
     .toLowerCase()
-    .replace(/[â€˜â€™â€›â€²`]/g, "'")
-    .replace(/[â€œâ€â€žâ€³]/g, '"')
-    .replace(/[â€“â€”âˆ’]/g, "-")
+    .replace(/[Ã¢â‚¬ËœÃ¢â‚¬â„¢Ã¢â‚¬â€ºÃ¢â‚¬Â²`]/g, "'")
+    .replace(/[Ã¢â‚¬Å“Ã¢â‚¬ÂÃ¢â‚¬Å¾Ã¢â‚¬Â³]/g, '"')
+    .replace(/[Ã¢â‚¬â€œÃ¢â‚¬â€Ã¢Ë†â€™]/g, "-")
     .replace(/\s+/g, " ")
     .trim();
 

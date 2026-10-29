@@ -3,7 +3,8 @@
 import Link from "next/link";
 import { useParams } from "next/navigation";
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
-import { Check, Copy, Plus, RefreshCw, WandSparkles } from "lucide-react";
+import { Check, Copy, Loader2, Plus, RefreshCw, Sparkles, WandSparkles } from "lucide-react";
+import { requestAiEmail, type AiEmail } from "@/lib/ai/client";
 import { useToast } from "@/components/Toast";
 import { Breadcrumbs, Button, TopBar } from "@/components/ui";
 import { firstNameOf } from "@/lib/contacts";
@@ -16,7 +17,7 @@ const SUBJECT_SOFT_LIMIT = 55;
 
 export default function OutreachDraft() {
   const { id } = useParams<{ id: string }>();
-  const { profile } = useAuth();
+  const { profile, session } = useAuth();
   const toast = useToast();
   const senderName = profile?.name ?? "the SEEDA team";
   const { get, update, getDraft, saveDraft, contactsFor, loaded } = useStore();
@@ -27,6 +28,12 @@ export default function OutreachDraft() {
   const [angle, setAngle] = useState<AngleId>(DEFAULT_ANGLE);
   const [previewTab, setPreviewTab] = useState<"email" | "linkedin">("email");
   const [recipientId, setRecipientId] = useState("");
+  // What the AI wrote last, until a template-based change (angle, tone, recipient) replaces it.
+  const [ai, setAi] = useState<AiEmail | null>(null);
+  const [aiInstruction, setAiInstruction] = useState("");
+  const [aiImprove, setAiImprove] = useState(false);
+  const [aiBusy, setAiBusy] = useState(false);
+  const [aiError, setAiError] = useState<string | null>(null);
   const [, tick] = useState(0);
   const bodyRef = useRef<HTMLTextAreaElement>(null);
 
@@ -47,8 +54,8 @@ export default function OutreachDraft() {
   const contacts = opp ? contactsFor(opp.id) : [];
   const recipient = contacts.find((c) => c.id === recipientId);
   const recipientFirst = recipient ? firstNameOf(recipient.name) : undefined;
-  const subjects = useMemo(() => (opp ? subjectOptions(opp, angle) : { a: "", b: "" }), [opp, angle]);
-  const note = opp ? linkedInNote(opp, senderName, angle, recipientFirst) : "";
+  const subjects = useMemo(() => (ai ? { a: ai.subjectA, b: ai.subjectB } : opp ? subjectOptions(opp, angle) : { a: "", b: "" }), [ai, opp, angle]);
+  const note = ai ? ai.linkedinNote : opp ? linkedInNote(opp, senderName, angle, recipientFirst) : "";
 
   if (!opp && !loaded) return null;
   if (!opp) return <div className="p-10 text-sm text-neutral-600">Opportunity not found. <Link href="/shortlist" className="underline">Back to Shortlist</Link></div>;
@@ -72,6 +79,7 @@ export default function OutreachDraft() {
   // Rebuilds the message, keeping the chosen subject version (A or B). The old draft can be brought back.
   const rebuild = (next: { angle?: AngleId; tone?: typeof draft.tone; recipient?: string }, message: string) => {
     const previous = draft;
+    setAi(null);
     const useAngle = next.angle ?? angle;
     const fresh = generateDraft(opp, senderName, next.tone ?? draft.tone, useAngle, next.recipient !== undefined ? next.recipient || undefined : recipientFirst);
     const wantsB = variant === "b";
@@ -85,8 +93,42 @@ export default function OutreachDraft() {
     rebuild({ angle: next }, `Switched the pitch to "${ANGLES.find((a) => a.id === next)?.label}"`);
   };
 
+  const writeWithAi = async () => {
+    if (!session || aiBusy) return;
+    setAiBusy(true);
+    setAiError(null);
+    const previous = draft;
+    const previousAi = ai;
+    const outcome = await requestAiEmail(session.access_token, {
+      opportunityId: opp.id,
+      angle,
+      tone: draft.tone,
+      senderName,
+      recipientContactId: recipient?.id,
+      instruction: aiInstruction.trim() || undefined,
+      currentBody: aiImprove ? draft.body : undefined,
+    });
+    setAiBusy(false);
+    if (!outcome.ok) {
+      setAiError(outcome.error);
+      return;
+    }
+    const { email } = outcome;
+    setAi(email);
+    // Keep the chosen subject version (A or B) when the new draft arrives.
+    saveDraft(opp.id, { ...draft, subject: variant === "b" ? email.subjectB : email.subjectA, body: email.body, updatedAt: Date.now() });
+    toast.push({
+      message: "The AI wrote a new draft",
+      onAction: () => {
+        setAi(previousAi);
+        saveDraft(opp.id, { ...previous, updatedAt: Date.now() });
+      },
+    });
+  };
+
   const chooseRecipient = (nextId: string) => {
     setRecipientId(nextId);
+    setAi(null);
     const person = contacts.find((c) => c.id === nextId);
     const greeting = person ? `Hello ${firstNameOf(person.name)},` : `Hello${opp.contactRole ? ` ${opp.contactRole}` : ""},`;
     // Only the greeting changes, so anything already edited in the message is kept.
@@ -197,6 +239,31 @@ export default function OutreachDraft() {
           </div>
 
           <aside className="no-print space-y-5">
+            <section className="rounded-lg border border-brand-line bg-brand-soft p-4" aria-label="Write with AI">
+              <h2 className="flex items-center gap-1.5 text-[12.5px] font-semibold text-brand-dark"><Sparkles className="size-3.5" />Write with AI</h2>
+              <p className="mt-1.5 text-[11.5px] leading-relaxed text-neutral-600">
+                Writes the email and the LinkedIn note from what you&rsquo;ve confirmed about this lead{recipient ? `, addressed to ${firstNameOf(recipient.name)}` : ""}, using the pitch angle and tone you picked. Read it before you send it.
+              </p>
+              <textarea
+                value={aiInstruction}
+                onChange={(e) => setAiInstruction(e.target.value)}
+                maxLength={300}
+                rows={2}
+                aria-label="Anything to add or change"
+                placeholder="Anything to add or change? e.g. mention SeeRem, keep it shorter"
+                className="mt-2.5 w-full resize-none rounded border border-line bg-surface px-2.5 py-2 text-[12px] outline-none focus:border-brand"
+              />
+              <label className="mt-2 flex items-start gap-2 text-[11.5px] text-neutral-600">
+                <input type="checkbox" checked={aiImprove} onChange={(e) => setAiImprove(e.target.checked)} className="mt-0.5" />
+                Improve my current draft instead of starting over
+              </label>
+              <Button variant="primary" className="mt-3 w-full" onClick={writeWithAi} disabled={aiBusy || !session}>
+                {aiBusy ? <Loader2 className="size-3.5 animate-spin" /> : <Sparkles className="size-3.5" />}
+                {aiBusy ? "Writing…" : ai ? "Write again" : "Write with AI"}
+              </Button>
+              {aiError && <p role="alert" className="mt-2 text-[11.5px] text-red-600">{aiError}</p>}
+            </section>
+
             {isNews && (
               <section className="rounded-lg border border-line bg-surface p-4">
                 <h2 className="label !text-neutral-600">Pitch angle</h2>
