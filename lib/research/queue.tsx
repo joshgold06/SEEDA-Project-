@@ -1,7 +1,7 @@
 "use client";
 
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from "react";
-import type { Stage } from "../data";
+import { isFound, type Stage } from "../data";
 import { useAuth } from "../AuthContext";
 import { useStore } from "../store";
 import { runResearch } from "./client";
@@ -117,7 +117,7 @@ export function ResearchQueueProvider({ children }: { children: React.ReactNode 
     const current = new Map(opportunities.map((o) => [o.id, o.stage] as const));
     const before = previousStages.current;
     if (before) {
-      const newlyShortlisted = opportunities.filter((o) => o.stage && o.type === "News" && !o.dismissed && before.has(o.id) && !before.get(o.id)).map((o) => o.id);
+      const newlyShortlisted = opportunities.filter((o) => o.stage && isFound(o) && !o.dismissed && before.has(o.id) && !before.get(o.id)).map((o) => o.id);
       if (newlyShortlisted.length) enqueue(newlyShortlisted);
     }
     previousStages.current = current;

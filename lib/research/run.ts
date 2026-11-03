@@ -47,7 +47,12 @@ const SEARCH_TIMEOUT_MS = 20_000;
 
 /** The headline without a trailing "- Publisher" and trimmed to something a search engine handles well. */
 const shortTitle = (title: string, max = 110) => {
-  const t = title.replace(/\s+-\s+[^-]{2,40}$/, "").replace(/["Ã¢â‚¬Å“Ã¢â‚¬Â]/g, "").trim();
+  // Official records add a register tag to the project name ("Cedar LNG: BC environmental assessment, Early Engagement",
+  // "...in Ramsay, Calgary: $4M building permit"); a search engine wants only the project.
+  const t = title
+    .replace(/:\s*BC environmental assessment,.*$/i, "")
+    .replace(/:\s*\$[\d.]+[MB]\s+building permit$/i, "")
+    .replace(/\s+-\s+[^-]{2,40}$/, "").replace(/["Ã¢â‚¬Å“Ã¢â‚¬Â]/g, "").trim();
   return t.length > max ? t.slice(0, max).replace(/\s+\S*$/, "") : t;
 };
 

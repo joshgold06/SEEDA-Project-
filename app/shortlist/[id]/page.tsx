@@ -8,7 +8,7 @@ import { requestAiEmail, type AiEmail } from "@/lib/ai/client";
 import { useToast } from "@/components/Toast";
 import { Breadcrumbs, Button, TopBar } from "@/components/ui";
 import { firstNameOf } from "@/lib/contacts";
-import { PROJECT_REFERENCES, STAGES, Stage } from "@/lib/data";
+import { isFound, PROJECT_REFERENCES, STAGES, Stage } from "@/lib/data";
 import { useAuth } from "@/lib/AuthContext";
 import { useStore } from "@/lib/store";
 import { AngleId, ANGLES, DEFAULT_ANGLE, generateDraft, insertReference, LINKEDIN_NOTE_LIMIT, linkedInNote, subjectOptions, timeAgo, TONES, wordCount } from "@/lib/outreach";
@@ -64,7 +64,7 @@ export default function OutreachDraft() {
   const set = (patch: Partial<typeof draft>) => saveDraft(opp.id, { ...draft, ...patch, updatedAt: Date.now() });
   const fullText = `Subject: ${draft.subject}\n\n${draft.body}`;
   const variant = draft.subject === subjects.a ? "a" : draft.subject === subjects.b ? "b" : "custom";
-  const isNews = opp.type === "News";
+  const isNews = isFound(opp);
 
   const copy = async (what: "email" | "linkedin") => {
     try {

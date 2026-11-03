@@ -4,7 +4,7 @@ import { useState } from "react";
 import { Loader2, Search } from "lucide-react";
 import { useAuth } from "@/lib/AuthContext";
 import { runDiscover, type DiscoverResult } from "@/lib/leads/client";
-import { SEARCH_PRESETS } from "@/lib/leads/presets";
+import { SEARCH_PRESETS, type SearchPreset } from "@/lib/leads/presets";
 import { ACTIVE_REGION_SENTENCE } from "@/lib/leads/taxonomy";
 import { useStore } from "@/lib/store";
 
@@ -14,7 +14,20 @@ function summarize(r: DiscoverResult): string {
   if (r.duplicatesMerged) parts.push(`${r.duplicatesMerged} repeat stories merged`);
   if (r.rejected) parts.push(`${r.rejected} rejected by validation`);
   if (r.lowRelevance) parts.push(`${r.lowRelevance} scored too low`);
-  return `Read ${r.found} headlines: ${parts.join(", ")}.`;
+  return `Read ${r.found} ${r.kind === "official" ? "official records" : "headlines"}: ${parts.join(", ")}.`;
+}
+
+function PresetButton({ preset, running, busy, onRun }: { preset: SearchPreset; running: string | null; busy: boolean; onRun: (key: string, payload: { presetId?: string; query?: string }) => void }) {
+  return (
+    <button
+      onClick={() => onRun(preset.id, { presetId: preset.id })}
+      disabled={busy}
+      className="inline-flex h-[28px] items-center gap-1.5 rounded-full border border-line bg-surface px-3 text-[12px] font-medium text-ink transition-colors hover:bg-neutral-50 disabled:opacity-50"
+    >
+      {running === preset.id && <Loader2 className="size-3 animate-spin" />}
+      {preset.label}
+    </button>
+  );
 }
 
 export function DiscoverPanel({ locked = false }: { locked?: boolean }) {
@@ -45,19 +58,18 @@ export function DiscoverPanel({ locked = false }: { locked?: boolean }) {
       <p className="text-[12.5px] leading-relaxed text-neutral-500">
         Searches recent public news (30 days, or 90 for contractor awards) for major projects in {ACTIVE_REGION_SENTENCE}.
         Each headline is checked, scored against EPCMst&apos;s keywords, and added to your Morning Scan only if it passes.
+        The official sources below read government records directly, and those name the owner (and sometimes the contractor).
         Open a lead to find the owner, the contractors and the people on the project.
       </p>
       <div className="mt-4 flex flex-wrap gap-2">
-        {SEARCH_PRESETS.map((p) => (
-          <button
-            key={p.id}
-            onClick={() => run(p.id, { presetId: p.id })}
-            disabled={busy}
-            className="inline-flex h-[28px] items-center gap-1.5 rounded-full border border-line bg-surface px-3 text-[12px] font-medium text-ink transition-colors hover:bg-neutral-50 disabled:opacity-50"
-          >
-            {running === p.id && <Loader2 className="size-3 animate-spin" />}
-            {p.label}
-          </button>
+        {SEARCH_PRESETS.filter((p) => !p.official).map((p) => (
+          <PresetButton key={p.id} preset={p} running={running} busy={busy} onRun={run} />
+        ))}
+      </div>
+      <h3 className="mt-4 font-mono text-[10.5px] font-semibold uppercase tracking-wider text-neutral-500">Official sources</h3>
+      <div className="mt-2 flex flex-wrap gap-2">
+        {SEARCH_PRESETS.filter((p) => p.official).map((p) => (
+          <PresetButton key={p.id} preset={p} running={running} busy={busy} onRun={run} />
         ))}
       </div>
       <form

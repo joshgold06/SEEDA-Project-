@@ -1,6 +1,6 @@
 import { z } from "zod";
 import { callGeminiJson, GeminiError } from "./gemini";
-import { ANGLES, LINKEDIN_NOTE_LIMIT, type AngleId, type Tone } from "../outreach";
+import { ANGLES, LINKEDIN_NOTE_LIMIT, sourceNoun, type AngleId, type Tone } from "../outreach";
 
 // Server side only. Asks Google's Gemini (free plan) to write one outreach email and a LinkedIn note from facts the
 // person has already confirmed. The model is told to use only those facts, and the result is a draft
@@ -27,7 +27,7 @@ export type EmailOutput = { subjectA: string; subjectB: string; body: string; li
 export interface EmailFacts {
   senderName: string;
   senderCompany: string;
-  lead: { headline: string; location?: string; value?: string; owner?: string; serviceLine?: string };
+  lead: { headline: string; location?: string; value?: string; owner?: string; serviceLine?: string; kind?: string };
   confirmed: { owner?: string; contractors: string[] };
   /** The person the email is for, with the sentence that ties them to the project, if research found one. */
   recipient?: { name: string; role?: string; company?: string; evidence?: string };
@@ -47,7 +47,7 @@ const COMPANY_FACTS = `About the sender's company (the only things you may claim
 const SYSTEM = `You write short, honest outreach emails for a business-development person at an engineering services company. Rules:
 - Use ONLY the facts in the request. Never invent a project detail, number, date, client, past project or relationship. If a fact is not given, leave it out.
 - Do not claim the sender has worked with the recipient or knows them. The email is a first, cold introduction.
-- Refer to the news as "a recent news report" and name the project in a few plain words, such as "the PRGT natural gas pipeline" or "the Yellowhead Pipeline". Never paste the headline word for word into the email. Do not quote or paraphrase the article beyond the facts given.
+- Refer to where the sender saw the project in the plain words the request gives ("a recent news report", "a public regulatory listing" or "a recent building permit") and name the project in a few plain words, such as "the PRGT natural gas pipeline" or "the Yellowhead Pipeline". Never paste the headline word for word into the email. Do not quote or paraphrase the article or record beyond the facts given.
 - If a recipient is named, use their first name and, if a source sentence is given, you may mention in a natural way that you read they are involved in the project. Never use a role or a company that is not given.
 - Keep the email under 150 words: a greeting, one sentence on why you are writing, two or three sentences on how the sender's company could help (using only the company facts, led by the requested pitch angle), and one low-pressure ask for a short conversation.
 - Plain, warm, specific, Canadian spelling. No hype, no flattery, no exclamation marks, no buzzwords, no emojis.
@@ -70,6 +70,7 @@ export function buildUserPrompt(f: EmailFacts): string {
     `Pitch angle to lead with: ${angle?.label} (${angle?.blurb})`,
     `Tone: ${f.tone}, meaning ${TONES[f.tone]}`,
     "",
+    `The sender saw this in: ${sourceNoun(f.lead.kind)}`,
     `Project headline: ${f.lead.headline}`,
     f.lead.location ? `Location: ${f.lead.location}` : null,
     f.lead.value ? `Value stated in the headline: ${f.lead.value}` : null,

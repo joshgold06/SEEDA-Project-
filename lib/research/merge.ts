@@ -40,7 +40,7 @@ export function relevanceWithResearch(relevance: Relevance, research: ResearchRo
   if (!accepted || (!accepted.owner && accepted.contractors.length === 0)) return relevance;
   const parts = [accepted.owner ? `owner ${accepted.owner.name}` : null, accepted.contractors.length ? `contractor${accepted.contractors.length === 1 ? "" : "s"} ${accepted.contractors.map((c) => c.name).join(", ")}` : null].filter(Boolean);
   const confirmed: Relevance[number] = { text: `Confirmed by your research: ${parts.join("; ")}`, kind: "match" };
-  const kept = relevance.filter((r) => !r.text.startsWith("News signal only") && !(accepted.owner && r.text.startsWith("Owner is not named")));
+  const kept = relevance.filter((r) => !/^(News|Register|Permit) signal only/.test(r.text) && !(accepted.owner && r.text.startsWith("Owner is not named")));
   return [...kept, confirmed];
 }
 

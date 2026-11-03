@@ -5,10 +5,15 @@
 // carbon capture). Terms are grouped in parentheses so region, signal and facility type must
 // all appear (AND between groups).
 
+import type { OfficialSource } from "./official/types";
+
+// A preset is either a Google News query or one official register (federal and BC assessments, city permits).
 export interface SearchPreset {
   id: string;
   label: string;
   query: string;
+  /** Set for official registers: the source is read directly and `query` is unused. */
+  official?: OfficialSource;
 }
 
 const REGIONS_QUERY = '(Alberta OR "British Columbia" OR "B.C." OR Saskatchewan OR Manitoba OR Ontario)';
@@ -74,10 +79,17 @@ export const SEARCH_PRESETS: SearchPreset[] = [
     label: "Pipeline projects",
     query: `pipeline (expansion OR approval OR construction OR integrity) ${REGIONS_QUERY} when:30d`,
   },
+  // Official records name the owner (and, for Calgary, the contractor) instead of leaving it to a headline.
+  { id: "official-iaac", label: "Federal impact assessments", query: "", official: "iaac" },
+  { id: "official-bc-eao", label: "BC environmental assessments", query: "", official: "bc-eao" },
+  { id: "official-calgary", label: "Calgary building permits", query: "", official: "calgary-permits" },
+  { id: "official-edmonton", label: "Edmonton building permits", query: "", official: "edmonton-permits" },
 ];
 
+export const findPreset = (id?: string) => (id ? SEARCH_PRESETS.find((p) => p.id === id) : undefined);
+
 export function resolveQuery(presetId?: string, custom?: string): string | null {
-  if (presetId) return SEARCH_PRESETS.find((p) => p.id === presetId)?.query ?? null;
+  if (presetId) return SEARCH_PRESETS.find((p) => p.id === presetId)?.query || null;
   const text = custom?.trim();
   if (!text) return null;
   return /when:\d+[dhm]/.test(text) ? text : `${text} when:30d`;

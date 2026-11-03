@@ -21,6 +21,21 @@ export const LeadSchema = z.object({
   keywords: z.array(z.string()),
   score: z.number().int().min(0).max(100),
   estimatedValue: z.number().positive().optional(),
+  // Where the lead came from. Headlines are "News"; the rest are official registers (see lib/leads/official).
+  origin: z.enum(["News", "Regulatory", "Permit"]).default("News"),
+  // Only official records carry this: the register's own wording for the detail page.
+  detail: z
+    .object({
+      overview: z.string(),
+      stage: z.string(),
+      stageNote: z.string(),
+      documentName: z.string(),
+      /** "Posted Sep 15", or the register's own wording when it gives no date. */
+      timing: z.string(),
+      dateLine: z.string(),
+      sizeNote: z.string().optional(),
+    })
+    .optional(),
   reasons: z.array(
     z.object({
       text: z.string(),

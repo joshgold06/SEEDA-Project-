@@ -1,4 +1,4 @@
-import { Opportunity } from "./data";
+import { isFound, Opportunity } from "./data";
 export type Tone = "Direct" | "Warm" | "Technical";
 export const TONES: Tone[] = ["Direct", "Warm", "Technical"];
 export type Draft = { subject: string; body: string; tone: Tone; updatedAt: number };
@@ -32,9 +32,14 @@ function angleParagraph(angle: AngleId, serviceLine: string): string {
   }
 }
 
+/** Where the sender saw the project, in the words an email would use. */
+export function sourceNoun(type: string | undefined): string {
+  return type === "Regulatory" ? "a public regulatory listing" : type === "Permit" ? "a recent building permit" : "a recent news report";
+}
+
 /** Two subject lines to choose between: one leads with the benefit, the other asks a question. */
 export function subjectOptions(o: Opportunity, angle: AngleId = DEFAULT_ANGLE): { a: string; b: string } {
-  if (o.type !== "News") return { a: `Interest in ${o.title}`, b: `Quick question about ${clip(o.title, 30)}` };
+  if (!isFound(o)) return { a: `Interest in ${o.title}`, b: `Quick question about ${clip(o.title, 30)}` };
   const who = subjectName(o);
   const target = who ? `${who}'s work` : "your project";
   const a = {
@@ -47,13 +52,13 @@ export function subjectOptions(o: Opportunity, angle: AngleId = DEFAULT_ANGLE): 
 }
 
 export function generateDraft(o: Opportunity, senderName: string, tone: Tone = "Warm", angle: AngleId = DEFAULT_ANGLE, recipient?: string): Draft {
-  // News leads: the pitch is short-term specialist expertise for a team's remaining
-  // knowledge gap (the EPCMst model), aimed at people on the project, not a bid.
-  if (o.type === "News") {
+  // Found leads (news, official records, permits): the pitch is short-term specialist expertise for a team's
+  // remaining knowledge gap (the EPCMst model), aimed at people on the project, not a bid.
+  if (isFound(o)) {
     const project = o.fullTitle ?? o.title;
     const opening = tone === "Direct" ? "I am reaching out about" : tone === "Technical" ? "I wanted to connect about the technical side of" : "I hope you are well. I am reaching out about";
     const who = recipient ?? o.contactRole;
-    const body = `Hello${who ? ` ${who}` : ""},\n\n${opening} a recent news report: "${project}".\n\n${angleParagraph(angle, o.serviceLine ?? "engineering, procurement and construction")}\n\nWould you be open to a short conversation about where outside specialist input could help?\n\nBest,\n${senderName}`;
+    const body = `Hello${who ? ` ${who}` : ""},\n\n${opening} ${sourceNoun(o.type)}: "${project}".\n\n${angleParagraph(angle, o.serviceLine ?? "engineering, procurement and construction")}\n\nWould you be open to a short conversation about where outside specialist input could help?\n\nBest,\n${senderName}`;
     return { tone, subject: subjectOptions(o, angle).a, body, updatedAt: Date.now() };
   }
   const greeting = tone === "Direct" ? "I am reaching out regarding" : tone === "Technical" ? "I wanted to connect about the technical scope for" : "I hope you are well. I am reaching out regarding";
@@ -71,7 +76,7 @@ export function linkedInNote(o: Opportunity, senderName: string, angle: AngleId 
     heavy: "SEEDA has supported heavy industrial EPC projects across North America.",
   }[angle];
   const signOff = senderName.toLowerCase().startsWith("the ") ? "" : ` ${senderName.trim().split(/\s+/)[0]}`;
-  const note = `Hi${recipient ? ` ${recipient}` : ""}, I saw this news: "${clip(o.title, 70)}". ${line} Glad to connect.${signOff}`;
+  const note = `Hi${recipient ? ` ${recipient}` : ""}, I saw ${o.type === "News" ? "this news" : o.type === "Permit" ? "this permit" : "this listing"}: "${clip(o.title, 70)}". ${line} Glad to connect.${signOff}`;
   return clip(note, LINKEDIN_NOTE_LIMIT);
 }
 

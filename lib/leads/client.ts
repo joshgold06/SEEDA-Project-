@@ -1,4 +1,6 @@
 export interface DiscoverResult {
+  /** "official" for a register or permit source, "news" for a Google News search. */
+  kind?: "news" | "official";
   found: number;
   added: number;
   alreadySaved: number;

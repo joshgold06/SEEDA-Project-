@@ -8,6 +8,7 @@ import { EpcmstMark } from "@/components/EpcmstLogo";
 import { TunePanel, useTuneSummary } from "@/components/TunePanel";
 import { Breadcrumbs, TopBar } from "@/components/ui";
 import { useAuth } from "@/lib/AuthContext";
+import { isFound } from "@/lib/data";
 import { useFilters } from "@/lib/filters";
 import { getPreviousVisit, isNewSince } from "@/lib/lastVisit";
 import { pickDistinct } from "@/lib/research/pick";
@@ -34,7 +35,7 @@ export default function ScanHome() {
   // The five best leads (under the current filters) that haven't been researched yet.
   // Several outlets often report one project, so near-duplicates are skipped to cover five different projects.
   const topToResearch = pickDistinct(
-    signals.filter((o) => o.type === "News" && matches(o) && !researchFor(o.id) && !researching.has(o.id)).sort((a, b) => scoreOf(b) - scoreOf(a)),
+    signals.filter((o) => isFound(o) && matches(o) && !researchFor(o.id) && !researching.has(o.id)).sort((a, b) => scoreOf(b) - scoreOf(a)),
     5
   );
   const refresh = useAutoRefresh(signals.length);
@@ -49,8 +50,8 @@ export default function ScanHome() {
     ? "Loading your leads…"
     : signals.length === 0
       ? refresh.running
-        ? "Scanning public news for major projects. Leads appear here as each search finishes."
-        : "No leads yet. Run a search below to pull in real projects from public news."
+        ? "Scanning public news and official records for major projects. Leads appear here as each search finishes."
+        : "No leads yet. Run a search below to pull in real projects from public news and official records."
       : `${signals.length} project signal${signals.length === 1 ? "" : "s"} across ${ACTIVE_REGION_SENTENCE}. Pick one from the list to start triaging.`;
 
   const stats = [
@@ -87,7 +88,7 @@ export default function ScanHome() {
               <div className="max-w-[420px]">
                 <div className="flex items-center gap-2 text-[12px] text-white/85">
                   <Loader2 className="size-3.5 animate-spin" />
-                  Scanning public news: search {Math.min(refresh.done + 1, refresh.total)} of {refresh.total}
+                  Scanning public sources: search {Math.min(refresh.done + 1, refresh.total)} of {refresh.total}
                   {refresh.added > 0 && <span className="rounded bg-white/15 px-1.5 py-0.5 font-mono text-[10.5px]">+{refresh.added} new</span>}
                 </div>
                 <div className="mt-2 h-1.5 overflow-hidden rounded-full bg-white/15">

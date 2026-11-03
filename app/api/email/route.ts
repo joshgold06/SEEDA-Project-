@@ -92,6 +92,7 @@ export async function POST(request: Request) {
           value: lead.value ? formatMoney(lead.value) : undefined,
           owner: headlineOwner,
           serviceLine: lead.service_line ?? undefined,
+          kind: lead.type,
         },
         confirmed: { owner: research?.accepted.owner?.name, contractors: [...headlineContractors, ...confirmedContractors] },
         recipient,

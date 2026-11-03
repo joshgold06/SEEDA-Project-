@@ -161,6 +161,7 @@ export const SIGNAL_TYPES = [
   "Operational scarcity",
   "Energy transition",
   "Project announcement",
+  "Building permit",
 ] as const;
 export type SignalType = (typeof SIGNAL_TYPES)[number];
 
@@ -171,6 +172,7 @@ export const SIGNAL_POINTS: Record<SignalType, number> = {
   "Operational scarcity": 20,
   "Energy transition": 18,
   "Project announcement": 14,
+  "Building permit": 16, // construction is close, and the permit often names the builder
 };
 
 export const SIGNAL_PHASE_TAG: Record<SignalType, string> = {
@@ -179,6 +181,7 @@ export const SIGNAL_PHASE_TAG: Record<SignalType, string> = {
   "Operational scarcity": "Operations",
   "Energy transition": "Energy Transition",
   "Project announcement": "Announcement",
+  "Building permit": "Permit",
 };
 
 export const SIGNAL_TERMS: Record<SignalType, string[]> = {
@@ -207,6 +210,8 @@ export const SIGNAL_TERMS: Record<SignalType, string[]> = {
     "funding", "grant", "loan", "tender", "rfp", "request for proposal", "request for qualifications", "rfq",
     "greenlight", "greenlights", "green-lights", "sanction", "breaks ground", "groundbreaking",
   ],
+  // Only official permit records carry this signal; a headline never does.
+  "Building permit": [],
 };
 
 // High-signal subset of Keywords.pdf, plus SEEDA's mining and water work.
@@ -274,7 +279,7 @@ export const KNOWN_CONTRACTORS: string[] = [
 ];
 
 // Owners that are governments or regulators rather than private companies.
-export const PUBLIC_OWNER_PATTERN = /\b(city of|town of|county of|municipal(?:ity)?|government of|province of|ministry|department of|federal|provincial|crown|regulator|commission|health authority|school (?:board|division))\b/i;
+export const PUBLIC_OWNER_PATTERN = /\b(city of|town of|county of|municipal(?:ity)?|government of|province of|ministry|department of|federal|provincial|crown corporations?|regulator|commission|health authority|school (?:board|division))\b/i;
 
 export const KNOWN_ORGANIZATIONS: string[] = [
   "Cenovus", "Suncor", "Canadian Natural", "CNRL", "Imperial Oil", "Pembina", "TC Energy", "Enbridge",
