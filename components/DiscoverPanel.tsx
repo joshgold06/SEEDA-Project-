@@ -12,6 +12,7 @@ function summarize(r: DiscoverResult): string {
   const parts = [`${r.added} new lead${r.added === 1 ? "" : "s"} added`];
   if (r.alreadySaved) parts.push(`${r.alreadySaved} already saved`);
   if (r.duplicatesMerged) parts.push(`${r.duplicatesMerged} repeat stories merged`);
+  if (r.sameProjectLinked) parts.push(`${r.sameProjectLinked} matched a project another register already lists`);
   if (r.rejected) parts.push(`${r.rejected} rejected by validation`);
   if (r.lowRelevance) parts.push(`${r.lowRelevance} scored too low`);
   return `Read ${r.found} ${r.kind === "official" ? "official records" : "headlines"}: ${parts.join(", ")}.`;

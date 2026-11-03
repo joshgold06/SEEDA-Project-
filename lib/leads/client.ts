@@ -5,6 +5,8 @@ export interface DiscoverResult {
   added: number;
   alreadySaved: number;
   duplicatesMerged: number;
+  /** Official records that matched a project another register already lists. */
+  sameProjectLinked?: number;
   lowRelevance: number;
   rejected: number;
   rejectionReasons: Record<string, number>;

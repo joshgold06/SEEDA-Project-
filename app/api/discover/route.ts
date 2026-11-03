@@ -4,6 +4,7 @@ import { buildCandidate, dedupeLeads, toOpportunity } from "@/lib/leads/extract"
 import { fetchGoogleNews } from "@/lib/leads/googleNews";
 import { buildOfficialCandidate } from "@/lib/leads/official/build";
 import { fetchOfficial, OFFICIAL_SOURCES } from "@/lib/leads/official";
+import { linkPatch, savedListing, splitSameProject, type SplitResult } from "@/lib/leads/official/link";
 import { ensureOrganizations } from "@/lib/leads/organizations";
 import { findPreset, resolveQuery } from "@/lib/leads/presets";
 import { LeadSchema, MIN_SCORE, type Lead } from "@/lib/leads/schema";
@@ -80,6 +81,8 @@ export async function POST(request: Request) {
   let unique: Lead[];
   let picked: Lead[];
   let savedBefore = 0;
+  let links: SplitResult["links"] = [];
+  let sameProjectInRun = 0;
   if (official) {
     unique = [...valid].sort((a, b) => b.score - a.score);
     // Checked in chunks so the request URL stays short.
@@ -88,7 +91,13 @@ export async function POST(request: Request) {
     const checks = await Promise.all(chunks.map((chunk) => supabase.from("opportunities").select("id").in("id", chunk)));
     const have = new Set(checks.flatMap((r) => (r.data ?? []).map((row: { id: string }) => row.id)));
     savedBefore = have.size;
-    picked = unique.filter((l) => !have.has(l.id)).slice(0, MAX_NEW_OFFICIAL);
+    // The same project can be on two registers (a mine under both the federal and the BC assessment): the second
+    // listing is attached to the saved lead instead of becoming a second lead.
+    const { data: savedRows } = await supabase.from("opportunities").select("id, title, full_title, location, overview, documents, involved").eq("type", "Regulatory");
+    const split = splitSameProject(unique.filter((l) => !have.has(l.id)), (savedRows ?? []).map((r) => savedListing(r as Parameters<typeof savedListing>[0])));
+    links = split.links;
+    sameProjectInRun = split.droppedInRun;
+    picked = split.kept.slice(0, MAX_NEW_OFFICIAL);
   } else {
     unique = dedupeLeads(valid);
     picked = unique.slice(0, MAX_NEW_LEADS);
@@ -131,12 +140,21 @@ export async function POST(request: Request) {
     );
   }
 
+  // Point each matched lead at the other register's listing. Best effort: only the person who found a lead can edit it.
+  await Promise.all(
+    links.map(({ saved, lead }) => {
+      const patch = linkPatch(saved, lead);
+      return patch ? supabase.from("opportunities").update(patch).eq("id", saved.id) : null;
+    })
+  );
+
   return Response.json({
     kind: official ? "official" : "news",
     found: candidates.length,
     added,
     alreadySaved: official ? savedBefore : rows.length - added,
     duplicatesMerged: valid.length - unique.length,
+    sameProjectLinked: links.length + sameProjectInRun,
     lowRelevance,
     rejected,
     rejectionReasons,
