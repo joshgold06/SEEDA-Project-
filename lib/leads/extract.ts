@@ -219,7 +219,7 @@ export function toOpportunity(lead: Lead, assignee: string): Opportunity {
   const where = official ? `named in the ${lead.publisher} record` : "named in the headline";
   return {
     id: lead.id,
-    ref: `${{ News: "SIG", Regulatory: "REG", Permit: "PRM" }[lead.origin]}-${lead.id.slice(4, 10).toUpperCase()}`,
+    ref: `${{ News: "SIG", Regulatory: "REG", Permit: "PRM", Tender: "TND" }[lead.origin]}-${lead.id.slice(4, 10).toUpperCase()}`,
     type: lead.origin,
     score: lead.score,
     title: lead.title.length > 110 ? `${lead.title.slice(0, 107)}...` : lead.title,
@@ -227,8 +227,8 @@ export function toOpportunity(lead: Lead, assignee: string): Opportunity {
     owner: lead.organization,
     location: place,
     timing: official?.timing ?? `Published ${shortDate(lead.publishedAt)}`,
-    timingIcon: "calendar",
-    daysLeft: null,
+    timingIcon: official?.daysLeft != null ? "clock" : "calendar",
+    daysLeft: official?.daysLeft ?? null,
     phaseTag: SIGNAL_PHASE_TAG[lead.signalType],
     inScan: true,
     stage: null,

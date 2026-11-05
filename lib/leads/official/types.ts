@@ -4,10 +4,10 @@ import type { Region } from "../taxonomy";
 // Each source is read into an OfficialRecord; buildOfficialCandidate then scores it with the same
 // factors as a headline, and LeadSchema decides whether it is allowed in.
 
-export type OfficialSource = "iaac" | "bc-eao" | "calgary-permits" | "edmonton-permits";
+export type OfficialSource = "iaac" | "bc-eao" | "calgary-permits" | "edmonton-permits" | "canadabuys";
 
 export interface OfficialRecord {
-  origin: "Regulatory" | "Permit";
+  origin: "Regulatory" | "Permit" | "Tender";
   source: OfficialSource;
   /** Stable within its source, so one record keeps one lead from run to run. */
   recordId: string;
@@ -17,6 +17,8 @@ export interface OfficialRecord {
   link: string;
   /** ISO date the register gives, or null when it gives none. */
   date: string | null;
+  /** ISO closing time, for tenders. */
+  closes?: string;
   region: Region | null;
   /** Free text to look for a town in. */
   placeText: string;

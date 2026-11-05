@@ -84,6 +84,7 @@ export const SEARCH_PRESETS: SearchPreset[] = [
   { id: "official-bc-eao", label: "BC environmental assessments", query: "", official: "bc-eao" },
   { id: "official-calgary", label: "Calgary building permits", query: "", official: "calgary-permits" },
   { id: "official-edmonton", label: "Edmonton building permits", query: "", official: "edmonton-permits" },
+  { id: "official-canadabuys", label: "Federal tenders (CanadaBuys)", query: "", official: "canadabuys" },
 ];
 
 export const findPreset = (id?: string) => (id ? SEARCH_PRESETS.find((p) => p.id === id) : undefined);

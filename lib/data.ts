@@ -1,7 +1,7 @@
 export type FactorKey = "region" | "signal" | "keywords" | "recency" | "value" | "contractor" | "owner";
 export type Stage = "spotted" | "reviewing" | "outreach" | "pipeline";
 /** Types of lead the app finds itself: a news headline, an official assessment record, or a building permit. */
-export const FOUND_TYPES = ["News", "Regulatory", "Permit"] as const;
+export const FOUND_TYPES = ["News", "Regulatory", "Permit", "Tender"] as const;
 export const isFound = (o: { type: string }) => (FOUND_TYPES as readonly string[]).includes(o.type);
 export const STAGES: { id: Stage; label: string }[] = [{ id: "spotted", label: "Spotted" }, { id: "reviewing", label: "Reviewing" }, { id: "outreach", label: "Outreach" }, { id: "pipeline", label: "Pipeline" }];
 export type Opportunity = { id: string; ref: string; type: string; score: number; title: string; fullTitle?: string; owner: string; location: string; timing: string; timingIcon: "calendar" | "clock"; daysLeft: number | null; phaseTag: string; inScan: boolean; stage: Stage | null; watched: boolean; dismissed: boolean; value?: number; category?: string; sourceId?: string; deadlineText?: string; overview?: string; insight?: string; matchPercent?: number; relevance?: { text: string; kind: "match" | "constraint"; strong?: string; factor?: FactorKey; points?: number }[]; involved?: { primary: string; secondary: string }; projectType?: { primary: string; secondary: string }; scale?: { primary: string; secondary: string }; currentStage?: { primary: string; secondary: string }; documents?: { name: string; kind: "pdf" | "doc"; url?: string }[]; serviceLine?: string; pipelineTime?: string; pipelineNote?: string; pipelineTags?: string[]; assignee: string; contactRole?: string; createdAt?: string; actedAt?: string };

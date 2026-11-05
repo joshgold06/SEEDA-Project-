@@ -30,6 +30,42 @@ export function workPhrase(work: string): string {
 /** "Indust/Manufacture Misc." -> "Industrial Manufacture": the city's class names, tidied for a title. */
 export const tidyClass = (label: string) => label.replace(/\bIndust\//i, "Industrial ").replace(/\s*Misc\.?$/i, "").replace(/\s+/g, " ").trim();
 
+/** Reads CSV text into rows. Handles quoted fields, doubled quotes and line breaks inside quotes. */
+export function parseCsv(text: string): string[][] {
+  const rows: string[][] = [];
+  let row: string[] = [];
+  let field = "";
+  let quoted = false;
+  for (let i = 0; i < text.length; i++) {
+    const c = text[i];
+    if (quoted) {
+      if (c === '"') {
+        if (text[i + 1] === '"') {
+          field += '"';
+          i++;
+        } else quoted = false;
+      } else field += c;
+    } else if (c === '"') quoted = true;
+    else if (c === ",") {
+      row.push(field);
+      field = "";
+    } else if (c === "\n") {
+      row.push(field.replace(/\r$/, ""));
+      rows.push(row);
+      row = [];
+      field = "";
+    } else field += c;
+  }
+  if (field || row.length) {
+    row.push(field);
+    rows.push(row);
+  }
+  return rows;
+}
+
+/** Plain text from a notice that may hold HTML. */
+export const stripTags = (html: string) => html.replace(/<[^>]*>/g, " ").replace(/&nbsp;/g, " ").replace(/&amp;/g, "&").replace(/\s+/g, " ").trim();
+
 export const isoDate = (d: Date) => d.toISOString().slice(0, 10);
 export const daysAgo = (now: Date, days: number) => new Date(now.getTime() - days * 86_400_000);
 

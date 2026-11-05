@@ -162,6 +162,7 @@ export const SIGNAL_TYPES = [
   "Energy transition",
   "Project announcement",
   "Building permit",
+  "Public tender",
 ] as const;
 export type SignalType = (typeof SIGNAL_TYPES)[number];
 
@@ -173,6 +174,7 @@ export const SIGNAL_POINTS: Record<SignalType, number> = {
   "Energy transition": 18,
   "Project announcement": 14,
   "Building permit": 16, // construction is close, and the permit often names the builder
+  "Public tender": 12, // a published tender is the public RFP itself: late, and open to everyone
 };
 
 export const SIGNAL_PHASE_TAG: Record<SignalType, string> = {
@@ -182,6 +184,7 @@ export const SIGNAL_PHASE_TAG: Record<SignalType, string> = {
   "Energy transition": "Energy Transition",
   "Project announcement": "Announcement",
   "Building permit": "Permit",
+  "Public tender": "Tender",
 };
 
 export const SIGNAL_TERMS: Record<SignalType, string[]> = {
@@ -210,8 +213,9 @@ export const SIGNAL_TERMS: Record<SignalType, string[]> = {
     "funding", "grant", "loan", "tender", "rfp", "request for proposal", "request for qualifications", "rfq",
     "greenlight", "greenlights", "green-lights", "sanction", "breaks ground", "groundbreaking",
   ],
-  // Only official permit records carry this signal; a headline never does.
+  // Only official permit and tender records carry these signals; a headline never does.
   "Building permit": [],
+  "Public tender": [],
 };
 
 // High-signal subset of Keywords.pdf, plus SEEDA's mining and water work.

@@ -22,7 +22,7 @@ export const LeadSchema = z.object({
   score: z.number().int().min(0).max(100),
   estimatedValue: z.number().positive().optional(),
   // Where the lead came from. Headlines are "News"; the rest are official registers (see lib/leads/official).
-  origin: z.enum(["News", "Regulatory", "Permit"]).default("News"),
+  origin: z.enum(["News", "Regulatory", "Permit", "Tender"]).default("News"),
   // Only official records carry this: the register's own wording for the detail page.
   detail: z
     .object({
@@ -33,6 +33,8 @@ export const LeadSchema = z.object({
       /** "Posted Sep 15", or the register's own wording when it gives no date. */
       timing: z.string(),
       dateLine: z.string(),
+      /** Whole days until a tender closes; absent for records with no deadline. */
+      daysLeft: z.number().int().nullable().optional(),
       sizeNote: z.string().optional(),
     })
     .optional(),
@@ -50,3 +52,6 @@ export type Lead = z.infer<typeof LeadSchema>;
 
 // Leads below this score pass validation but are not worth a BD person's time.
 export const MIN_SCORE = 40;
+// Public tenders are open to every bidder and are mostly small federal facility jobs, so they rarely reach MIN_SCORE
+// even when they fit. A lower floor lets the few that match EPCMst's fields in, ranked well below private projects.
+export const MIN_TENDER_SCORE = 30;

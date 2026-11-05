@@ -34,7 +34,7 @@ function angleParagraph(angle: AngleId, serviceLine: string): string {
 
 /** Where the sender saw the project, in the words an email would use. */
 export function sourceNoun(type: string | undefined): string {
-  return type === "Regulatory" ? "a public regulatory listing" : type === "Permit" ? "a recent building permit" : "a recent news report";
+  return type === "Regulatory" ? "a public regulatory listing" : type === "Permit" ? "a recent building permit" : type === "Tender" ? "a public tender notice" : "a recent news report";
 }
 
 /** Two subject lines to choose between: one leads with the benefit, the other asks a question. */
@@ -76,7 +76,7 @@ export function linkedInNote(o: Opportunity, senderName: string, angle: AngleId 
     heavy: "SEEDA has supported heavy industrial EPC projects across North America.",
   }[angle];
   const signOff = senderName.toLowerCase().startsWith("the ") ? "" : ` ${senderName.trim().split(/\s+/)[0]}`;
-  const note = `Hi${recipient ? ` ${recipient}` : ""}, I saw ${o.type === "News" ? "this news" : o.type === "Permit" ? "this permit" : "this listing"}: "${clip(o.title, 70)}". ${line} Glad to connect.${signOff}`;
+  const note = `Hi${recipient ? ` ${recipient}` : ""}, I saw ${o.type === "News" ? "this news" : o.type === "Permit" ? "this permit" : o.type === "Tender" ? "this tender" : "this listing"}: "${clip(o.title, 70)}". ${line} Glad to connect.${signOff}`;
   return clip(note, LINKEDIN_NOTE_LIMIT);
 }
 

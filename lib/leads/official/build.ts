@@ -15,6 +15,12 @@ const PUBLIC_PROPONENT = /\b(parks canada|national defence|public services and p
 // Registers sometimes hold a placeholder where a company belongs ("External").
 const PLACEHOLDER_NAME = /^(external|n\/?a|none|unknown|tbd|various|not (?:applicable|available|specified))$/i;
 
+const TENDER_TITLE_INDUSTRY: [RegExp, string][] = [
+  [/\b(fuel|transformer|switch(?:gear)?|substation|generator|electrical|power distribution)\b/i, "Energy"],
+  [/\b(reverse osmosis|sanitary|sewer|water supply|cross connection)\b/i, "Water"],
+  [/\b(dam|retaining wall|lock|bridge|highway)\b/i, "Infrastructure"],
+];
+
 // The register's own category (or a permit's class) mapped onto the industry filters.
 const CATEGORY_INDUSTRY: [RegExp, string][] = [
   [/petroleum|oil|natural gas|energy|electric|power|pipeline|substation|transformer/i, "Energy"],
@@ -44,16 +50,21 @@ export function buildOfficialCandidate(rec: OfficialRecord, now: Date = new Date
   // A regulator's proponent is the owner. A permit's applicant may be the owner, a builder or a designer, so no
   // owner type (and no owner points) is claimed for it.
   const ownerType: "Private" | "Public" | "Unclear" =
-    !organizationKnown || rec.origin === "Permit" ? "Unclear" : PUBLIC_OWNER_PATTERN.test(organization) || PUBLIC_PROPONENT.test(organization) ? "Public" : "Private";
+    !organizationKnown || rec.origin === "Permit" ? "Unclear" : rec.origin === "Tender" || PUBLIC_OWNER_PATTERN.test(organization) || PUBLIC_PROPONENT.test(organization) ? "Public" : "Private";
   const contractors = rec.contractors.filter((c) => c !== organization);
 
-  const signalType: SignalType = rec.origin === "Permit" ? "Building permit" : "Regulatory milestone";
+  const signalType: SignalType = rec.origin === "Permit" ? "Building permit" : rec.origin === "Tender" ? "Public tender" : "Regulatory milestone";
+  const daysLeft = rec.closes ? Math.ceil((new Date(rec.closes).getTime() - now.getTime()) / DAY_MS) : null;
   const keywords = found(text, EPC_KEYWORDS);
   // Industry comes from the register's own category. Only when the category says nothing is the project's name read
   // for industry words. The long description is left out on purpose: a subdivision or a police station mentions
   // "grid" or "hydro" without being energy work, and "terminal" in a permit means a bus stop, not an LNG terminal.
   const industryTags = CATEGORY_INDUSTRY.filter(([pattern]) => pattern.test(rec.category)).map(([, tag]) => tag);
   if (!industryTags.length && rec.origin !== "Permit") industryTags.push(...Object.entries(INDUSTRY_TERMS).filter(([, terms]) => found(rec.title, terms).length).map(([tag]) => tag));
+  // Federal facility tenders say "fuel tank" or "dam", not "pipeline" or "refinery". Words are checked in the title only.
+  if (!industryTags.length && rec.origin === "Tender") {
+    for (const [pattern, tag] of TENDER_TITLE_INDUSTRY) if (pattern.test(rec.title)) industryTags.push(tag);
+  }
   const orgIndustry = ORG_INDUSTRY[organization];
   if (orgIndustry && !industryTags.includes(orgIndustry)) industryTags.push(orgIndustry);
 
@@ -101,16 +112,21 @@ export function buildOfficialCandidate(rec: OfficialRecord, now: Date = new Date
     score -= 8;
     reasons.push({ text: "Public-sector owner: this is usually a public tender, not the private work EPCMst is aiming at", kind: "constraint", factor: "owner", points: -8 });
   }
+  if (daysLeft !== null) {
+    reasons.push({ text: `Closes in ${daysLeft} day${daysLeft === 1 ? "" : "s"}${daysLeft <= 7 ? ": a short window to respond" : ""}`, kind: daysLeft <= 7 ? "constraint" : "match" });
+  }
   if (!organizationKnown) reasons.push({ text: `Owner is not named in the ${rec.publisher} record`, kind: "constraint" });
   else if (rec.origin === "Permit") reasons.push({ text: `Applicant on the permit: ${organization} (not necessarily the owner)`, kind: "constraint" });
   reasons.push({
     text: rec.origin === "Permit"
       ? "Permit signal only: the owner (if not named) and the people on the project still need confirming"
-      : "Register signal only: the contractors and the people on the project still need confirming",
+      : rec.origin === "Tender"
+        ? "Register signal only: a public tender is open to every bidder, so the people behind it still need finding"
+        : "Register signal only: the contractors and the people on the project still need confirming",
     kind: "constraint",
   });
 
-  const idPrefix = rec.origin === "Permit" ? "prm" : "reg";
+  const idPrefix = { Permit: "prm", Tender: "tnd", Regulatory: "reg" }[rec.origin];
   return {
     id: `${idPrefix}-${hash(`${rec.source}:${rec.recordId}`)}`,
     title: rec.title,
@@ -134,8 +150,13 @@ export function buildOfficialCandidate(rec: OfficialRecord, now: Date = new Date
       stage: rec.stage,
       stageNote: rec.stageNote,
       documentName: rec.documentName,
-      timing: dated ? `Recorded ${dated.toLocaleDateString("en-CA", { month: "short", day: "numeric", timeZone: "UTC" })}` : "On the register",
-      dateLine: dated ? `Recorded ${dated.toLocaleDateString("en-CA", { month: "long", day: "numeric", year: "numeric", timeZone: "UTC" })}` : `Listed on the ${rec.publisher} register`,
+      timing: rec.closes
+        ? `Closes ${new Date(rec.closes).toLocaleDateString("en-CA", { month: "short", day: "numeric", timeZone: "UTC" })}`
+        : dated ? `Recorded ${dated.toLocaleDateString("en-CA", { month: "short", day: "numeric", timeZone: "UTC" })}` : "On the register",
+      dateLine: rec.closes
+        ? `Closes ${new Date(rec.closes).toLocaleDateString("en-CA", { month: "long", day: "numeric", year: "numeric", timeZone: "UTC" })}`
+        : dated ? `Recorded ${dated.toLocaleDateString("en-CA", { month: "long", day: "numeric", year: "numeric", timeZone: "UTC" })}` : `Listed on the ${rec.publisher} register`,
+      daysLeft,
       sizeNote: rec.sizeNote,
     },
     reasons,

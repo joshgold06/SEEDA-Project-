@@ -7,7 +7,7 @@ import { fetchOfficial, OFFICIAL_SOURCES } from "@/lib/leads/official";
 import { linkPatch, savedListing, splitSameProject, type SplitResult } from "@/lib/leads/official/link";
 import { ensureOrganizations } from "@/lib/leads/organizations";
 import { findPreset, resolveQuery } from "@/lib/leads/presets";
-import { LeadSchema, MIN_SCORE, type Lead } from "@/lib/leads/schema";
+import { LeadSchema, MIN_SCORE, MIN_TENDER_SCORE, type Lead } from "@/lib/leads/schema";
 import { opportunityToRow } from "@/lib/supabase/mappers";
 
 export const dynamic = "force-dynamic";
@@ -69,7 +69,7 @@ export async function POST(request: Request) {
       rejected++;
       const reason = result.error.issues[0]?.message ?? "Failed validation";
       rejectionReasons[reason] = (rejectionReasons[reason] ?? 0) + 1;
-    } else if (result.data.score < MIN_SCORE) {
+    } else if (result.data.score < (result.data.origin === "Tender" ? MIN_TENDER_SCORE : MIN_SCORE)) {
       lowRelevance++;
     } else {
       valid.push(result.data);
