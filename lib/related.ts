@@ -1,6 +1,7 @@
 import type { Opportunity } from "./data";
 import { formatMoney } from "./leads/extract";
 import { regionFromLocation } from "./leads/official/sameProject";
+import { PUBLIC_OWNER_PATTERN } from "./leads/taxonomy";
 
 // One project is usually reported by several outlets, and a new scan saves each differently worded headline as its
 // own lead. This finds the other leads that look like the same project, so a person is warned before contacting one
@@ -30,7 +31,19 @@ const wordsOf = (o: Opportunity): Set<string> =>
 // Headlines and register listings can describe a project; permits and tenders are single jobs and are not compared.
 const comparable = (o: Opportunity) => (o.type === "News" || o.type === "Regulatory") && !o.dismissed;
 
-/** Builds the word statistics once for a set of leads and returns a lookup for one lead at a time. */
+export interface SameCompany {
+  name: string;
+  /** Up to five other leads that name the same company, those already at Outreach or Pipeline first. */
+  leads: Opportunity[];
+  /** How many other leads name it in all. */
+  total: number;
+}
+
+const OWNER_UNKNOWN = new Set(["not identified in headline", "unknown owner"]);
+const ownerKey = (name: string) => name.toLowerCase().replace(/[^a-z0-9 ]+/g, " ").replace(/\b(inc|ltd|limited|corp|corporation|company|the)\b/g, " ").replace(/\s+/g, " ").trim();
+const underway = (o: Opportunity) => o.stage === "outreach" || o.stage === "pipeline";
+
+/** Builds the word statistics once for a set of leads and returns two lookups: same project, and same company. */
 export function relatedIndex(all: Opportunity[]) {
   const pool = all.filter(comparable);
   const words = new Map(pool.map((o) => [o.id, wordsOf(o)] as const));
@@ -39,7 +52,24 @@ export function relatedIndex(all: Opportunity[]) {
   for (const set of words.values()) for (const w of set) df.set(w, (df.get(w) ?? 0) + 1);
   const common = (w: string) => (df.get(w) ?? 0) / Math.max(1, pool.length) > COMMON_AT;
 
-  return (target: Opportunity): RelatedLead[] => {
+  // Leads grouped by the company they name. Government bodies are left out: "the province" is not one company.
+  const byCompany = new Map<string, Opportunity[]>();
+  for (const o of pool) {
+    if (!o.owner || OWNER_UNKNOWN.has(o.owner.toLowerCase()) || PUBLIC_OWNER_PATTERN.test(o.owner)) continue;
+    const key = ownerKey(o.owner);
+    if (key) byCompany.set(key, [...(byCompany.get(key) ?? []), o]);
+  }
+
+  /** `skip` holds leads already shown as the same project, so one lead is never listed twice. */
+  const company = (target: Opportunity, skip: ReadonlySet<string> = new Set()): SameCompany | null => {
+    if (!comparable(target) || !target.owner) return null;
+    const others = (byCompany.get(ownerKey(target.owner)) ?? []).filter((o) => o.id !== target.id && !skip.has(o.id));
+    if (others.length === 0) return null;
+    const ordered = [...others].sort((a, b) => Number(underway(b)) - Number(underway(a)) || b.score - a.score);
+    return { name: target.owner, leads: ordered.slice(0, 5), total: others.length };
+  };
+
+  const project = (target: Opportunity): RelatedLead[] => {
     if (!comparable(target)) return [];
     const mine = words.get(target.id) ?? wordsOf(target);
     const region = regions.get(target.id) ?? regionFromLocation(target.location);
@@ -63,4 +93,6 @@ export function relatedIndex(all: Opportunity[]) {
     }
     return out.sort((a, b) => b.shared - a.shared).slice(0, 5);
   };
+
+  return { project, company };
 }
