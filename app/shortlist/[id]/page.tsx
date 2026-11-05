@@ -5,6 +5,7 @@ import { useParams } from "next/navigation";
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { Check, Copy, Loader2, Plus, RefreshCw, Sparkles, WandSparkles } from "lucide-react";
 import { requestAiEmail, type AiEmail } from "@/lib/ai/client";
+import { RelatedLeads } from "@/components/RelatedLeads";
 import { useToast } from "@/components/Toast";
 import { Breadcrumbs, Button, TopBar } from "@/components/ui";
 import { firstNameOf } from "@/lib/contacts";
@@ -164,6 +165,7 @@ export default function OutreachDraft() {
         <p className="mt-2 text-[13px] text-neutral-500">
           Built from the <strong className="font-semibold text-neutral-700">{opp.title}</strong> signal and your <strong className="font-semibold text-neutral-700">{opp.serviceLine ?? "core"}</strong> service line. Pick the angle, choose a subject line, and check how it will look before you send.
         </p>
+        <RelatedLeads opp={opp} mode="outreach" />
 
         <div className="mt-7 grid gap-6 lg:grid-cols-[minmax(0,1fr)_300px]">
           <div className="min-w-0 space-y-6">

@@ -1,4 +1,5 @@
 import type { FactorKey, Opportunity } from "../data";
+import { freshnessPoints } from "../freshness";
 import { CONTRACTOR_PREFIX } from "./people";
 import type { NewsItem } from "./googleNews";
 import type { Lead } from "./schema";
@@ -134,7 +135,7 @@ export function buildCandidate(item: NewsItem, now: Date = new Date()): Record<s
     score += keywordPoints;
     reasons.push({ text: `Matches EPCMst keywords: ${keywords.slice(0, 4).join(", ")}`, kind: "match", factor: "keywords", points: keywordPoints });
   }
-  const recency = ageDays <= 3 ? 15 : ageDays <= 7 ? 11 : ageDays <= 14 ? 7 : ageDays <= 30 ? 3 : 0;
+  const recency = freshnessPoints(ageDays);
   score += recency;
   reasons.push({ text: ageDays < 1 ? "Published today" : `Published ${Math.floor(ageDays)} day${Math.floor(ageDays) === 1 ? "" : "s"} ago`, kind: recency >= 7 ? "match" : "constraint", factor: "recency", points: recency });
   if (estimatedValue) {

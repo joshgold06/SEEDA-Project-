@@ -1,4 +1,5 @@
 import { Opportunity, Stage } from "@/lib/data";
+import { freshen } from "@/lib/freshness";
 import { Draft, Tone, timeAgo } from "@/lib/outreach";
 
 // snake_case DB row <-> camelCase app type. Keeps the Supabase wire format
@@ -76,20 +77,23 @@ const companyName = (row: OpportunityRow): string => {
 export function rowToOpportunity(row: OpportunityRow, action?: LeadActionRow): Opportunity {
   const stage = action?.stage ?? null;
   const when = action ? timeAgo(new Date(action.updated_at).getTime()) : null;
+  // Freshness and a tender's countdown are worked out as of now, not as of the scan that saved the lead.
+  const fresh = freshen({ type: row.type, deadlineText: row.deadline_text, createdAt: row.created_at, relevance: row.relevance, score: row.score, daysLeft: row.days_left });
   return {
     id: row.id,
     ref: row.ref,
     type: row.type,
-    score: row.score,
+    score: fresh.score,
     title: row.title,
     fullTitle: row.full_title ?? undefined,
     owner: companyName(row),
     location: row.location,
     timing: row.timing,
     timingIcon: row.timing_icon,
-    daysLeft: row.days_left,
+    daysLeft: fresh.daysLeft,
     phaseTag: row.phase_tag,
-    inScan: row.in_scan,
+    // A tender past its closing date drops off the Morning Scan; anything already shortlisted stays in the shortlist.
+    inScan: row.in_scan && !fresh.closed,
     stage,
     watched: action?.watched ?? false,
     dismissed: action?.dismissed ?? false,
@@ -100,7 +104,7 @@ export function rowToOpportunity(row: OpportunityRow, action?: LeadActionRow): O
     overview: row.overview ?? undefined,
     insight: row.insight ?? undefined,
     matchPercent: row.match_percent ?? undefined,
-    relevance: row.relevance ?? undefined,
+    relevance: fresh.relevance as Opportunity["relevance"],
     involved: row.involved ?? undefined,
     projectType: row.project_type ?? undefined,
     scale: row.scale ?? undefined,

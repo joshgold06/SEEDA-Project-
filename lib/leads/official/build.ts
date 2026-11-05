@@ -1,4 +1,5 @@
 import type { FactorKey } from "../../data";
+import { freshnessPoints } from "../../freshness";
 import { detectOrganization, found, formatMoney, hash, scanRegion } from "../extract";
 import {
   ACTIVE_REGIONS, EPC_KEYWORDS, INDUSTRY_TERMS, ORG_INDUSTRY, PUBLIC_OWNER_PATTERN, SIGNAL_POINTS,
@@ -71,7 +72,7 @@ export function buildOfficialCandidate(rec: OfficialRecord, now: Date = new Date
   const dated = rec.date ? new Date(rec.date) : null;
   const ageDays = dated ? Math.max(0, (now.getTime() - dated.getTime()) / DAY_MS) : null;
   // A register with no change date earns little freshness: it may have listed the project years ago.
-  const recency = ageDays === null ? 3 : ageDays <= 3 ? 15 : ageDays <= 7 ? 11 : ageDays <= 14 ? 7 : ageDays <= 30 ? 3 : 0;
+  const recency = ageDays === null ? 3 : freshnessPoints(ageDays);
 
   const reasons: { text: string; kind: "match" | "constraint"; factor?: FactorKey; points?: number }[] = [];
   let score = 0;
@@ -153,8 +154,9 @@ export function buildOfficialCandidate(rec: OfficialRecord, now: Date = new Date
       timing: rec.closes
         ? `Closes ${new Date(rec.closes).toLocaleDateString("en-CA", { month: "short", day: "numeric", timeZone: "UTC" })}`
         : dated ? `Recorded ${dated.toLocaleDateString("en-CA", { month: "short", day: "numeric", timeZone: "UTC" })}` : "On the register",
+      // A tender's line carries both dates: freshness is worked out from "Published", the countdown from "Closes".
       dateLine: rec.closes
-        ? `Closes ${new Date(rec.closes).toLocaleDateString("en-CA", { month: "long", day: "numeric", year: "numeric", timeZone: "UTC" })}`
+        ? `Closes ${new Date(rec.closes).toLocaleDateString("en-CA", { month: "long", day: "numeric", year: "numeric", timeZone: "UTC" })}${dated ? `. Published ${dated.toLocaleDateString("en-CA", { month: "long", day: "numeric", year: "numeric", timeZone: "UTC" })}` : ""}`
         : dated ? `Recorded ${dated.toLocaleDateString("en-CA", { month: "long", day: "numeric", year: "numeric", timeZone: "UTC" })}` : `Listed on the ${rec.publisher} register`,
       daysLeft,
       sizeNote: rec.sizeNote,
