@@ -6,6 +6,7 @@ import { Opportunity, Stage } from "./data";
 import { rowToResearch, type Accepted, type ResearchDbRow, type ResearchRow } from "./research/types";
 import { Draft, generateDraft } from "./outreach";
 import { useAuth } from "./AuthContext";
+import { leadAllowed, useSettings } from "./settings";
 import { ensureOrganizations } from "./leads/organizations";
 import { createClient, isSupabaseConfigured } from "./supabase/client";
 import {
@@ -55,7 +56,9 @@ const StoreContext = createContext<Store | null>(null);
 
 export function StoreProvider({ children }: { children: React.ReactNode }) {
   const { profile, user } = useAuth();
-  const senderName = profile?.name ?? "the SEEDA team";
+  const { settings } = useSettings();
+  // The person's own sign-off from Settings, or their name when they haven't set one.
+  const senderName = settings.outreach.signature.trim() || (profile?.name ?? "the SEEDA team");
   const userId = user?.id ?? null;
 
   const [state, setState] = useState<State>(EMPTY_STATE);
@@ -240,16 +243,21 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
     [supabase, commit]
   );
 
+  // The person's source and age preferences take leads off the Morning Scan and Map. They stay in the list so a
+  // shortlisted lead, a link or a search still finds them.
+  const opportunities = useMemo(() => state.opportunities.map((o) => (!o.inScan || leadAllowed(o, settings) ? o : { ...o, inScan: false })), [state.opportunities, settings]);
+
   const store = useMemo<Store>(
     () => ({
       ...state,
+      opportunities,
       loaded,
-      get: (id) => state.opportunities.find((o) => o.id === id),
+      get: (id) => opportunities.find((o) => o.id === id),
       update,
       setStage: (id, stage) => update(id, { stage }),
       addLead,
       saveDraft,
-      getDraft: (id) => state.drafts[id] ?? generateDraft(state.opportunities.find((o) => o.id === id)!, senderName),
+      getDraft: (id) => state.drafts[id] ?? generateDraft(opportunities.find((o) => o.id === id)!, senderName, settings.outreach.tone, settings.outreach.angle),
       contactsFor: (opportunityId) => state.contacts.filter((c) => c.opportunityId === opportunityId),
       addContact,
       removeContact,
@@ -258,7 +266,7 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
       updateResearch,
       reset: () => void loadFromSupabase(),
     }),
-    [state, loaded, update, addLead, saveDraft, addContact, removeContact, setResearch, updateResearch, loadFromSupabase, senderName]
+    [state, opportunities, loaded, update, addLead, saveDraft, addContact, removeContact, setResearch, updateResearch, loadFromSupabase, senderName, settings.outreach.tone, settings.outreach.angle]
   );
 
   return <StoreContext.Provider value={store}>{children}</StoreContext.Provider>;

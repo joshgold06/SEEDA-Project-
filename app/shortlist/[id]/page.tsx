@@ -12,7 +12,8 @@ import { firstNameOf } from "@/lib/contacts";
 import { isFound, PROJECT_REFERENCES, STAGES, Stage } from "@/lib/data";
 import { useAuth } from "@/lib/AuthContext";
 import { useStore } from "@/lib/store";
-import { AngleId, ANGLES, DEFAULT_ANGLE, generateDraft, insertReference, LINKEDIN_NOTE_LIMIT, linkedInNote, subjectOptions, timeAgo, TONES, wordCount } from "@/lib/outreach";
+import { useSettings } from "@/lib/settings";
+import { AngleId, ANGLES, generateDraft, insertReference, LINKEDIN_NOTE_LIMIT, linkedInNote, subjectOptions, timeAgo, TONES, wordCount } from "@/lib/outreach";
 
 const SUBJECT_SOFT_LIMIT = 55;
 
@@ -20,13 +21,21 @@ export default function OutreachDraft() {
   const { id } = useParams<{ id: string }>();
   const { profile, session } = useAuth();
   const toast = useToast();
-  const senderName = profile?.name ?? "the SEEDA team";
+  const { settings, loaded: settingsLoaded } = useSettings();
+  // The sign-off is the person's signature from Settings (it can be several lines) or their name; the first line is
+  // the name used in the LinkedIn note, the AI request and the header.
+  const signOff = settings.outreach.signature.trim() || (profile?.name ?? "the SEEDA team");
+  const senderName = signOff.split("\n")[0].trim();
   const { get, update, getDraft, saveDraft, contactsFor, loaded } = useStore();
   const opp = get(id);
 
   const [copied, setCopied] = useState<"email" | "linkedin" | null>(null);
   const [refMenu, setRefMenu] = useState(false);
-  const [angle, setAngle] = useState<AngleId>(DEFAULT_ANGLE);
+  const [angle, setAngle] = useState<AngleId>(settings.outreach.angle);
+  // Settings load a moment after the page; the person's default pitch angle is used once they have.
+  useEffect(() => {
+    if (settingsLoaded) setAngle(settings.outreach.angle);
+  }, [settingsLoaded, settings.outreach.angle]);
   const [previewTab, setPreviewTab] = useState<"email" | "linkedin">("email");
   const [recipientId, setRecipientId] = useState("");
   // What the AI wrote last, until a template-based change (angle, tone, recipient) replaces it.
@@ -82,7 +91,7 @@ export default function OutreachDraft() {
     const previous = draft;
     setAi(null);
     const useAngle = next.angle ?? angle;
-    const fresh = generateDraft(opp, senderName, next.tone ?? draft.tone, useAngle, next.recipient !== undefined ? next.recipient || undefined : recipientFirst);
+    const fresh = generateDraft(opp, signOff, next.tone ?? draft.tone, useAngle, next.recipient !== undefined ? next.recipient || undefined : recipientFirst);
     const wantsB = variant === "b";
     saveDraft(opp.id, wantsB ? { ...fresh, subject: subjectOptions(opp, useAngle).b } : fresh);
     toast.push({ message, onAction: () => saveDraft(opp.id, { ...previous, updatedAt: Date.now() }) });
@@ -105,6 +114,7 @@ export default function OutreachDraft() {
       angle,
       tone: draft.tone,
       senderName,
+      senderCompany: settings.outreach.company.trim() || undefined,
       recipientContactId: recipient?.id,
       instruction: aiInstruction.trim() || undefined,
       currentBody: aiImprove ? draft.body : undefined,

@@ -11,7 +11,7 @@ export type AiEmailOutcome = { ok: true; email: AiEmail } | { ok: false; error: 
 
 export async function requestAiEmail(
   token: string,
-  payload: { opportunityId: string; angle: AngleId; tone: Tone; senderName: string; recipientContactId?: string; instruction?: string; currentBody?: string }
+  payload: { opportunityId: string; angle: AngleId; tone: Tone; senderName: string; senderCompany?: string; recipientContactId?: string; instruction?: string; currentBody?: string }
 ): Promise<AiEmailOutcome> {
   try {
     const res = await fetch("/api/email", {

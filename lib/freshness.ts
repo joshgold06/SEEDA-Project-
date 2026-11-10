@@ -51,6 +51,8 @@ export interface Freshened {
   daysLeft: number | null;
   /** A tender whose closing date has passed. */
   closed: boolean;
+  /** When the lead was published or recorded, if the saved record says. Used to hide leads past a person's age limit. */
+  published: Date | null;
 }
 
 /** Recomputes freshness, the closing countdown, the score and days left as of `now`. Leads without a saved date keep what they had. */
@@ -85,5 +87,5 @@ export function freshen(lead: Freshenable, now: Date = new Date()): Freshened {
     daysLeft = Math.ceil((closes.getTime() + DAY_MS - now.getTime()) / DAY_MS);
     closed = daysLeft <= 0;
   }
-  return { relevance, score, daysLeft, closed };
+  return { relevance, score, daysLeft, closed, published };
 }

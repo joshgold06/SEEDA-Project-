@@ -10,6 +10,7 @@ import { ToastProvider } from "@/components/Toast";
 import { AuthProvider } from "@/lib/AuthContext";
 import { FiltersProvider } from "@/lib/filters";
 import { ResearchQueueProvider } from "@/lib/research/queue";
+import { SettingsProvider } from "@/lib/settings";
 import { StoreProvider } from "@/lib/store";
 import { ThemeProvider } from "@/lib/theme";
 import { THEME_INIT_SCRIPT } from "@/lib/themeScript";
@@ -28,17 +29,19 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         <Script id="theme-init" strategy="beforeInteractive" dangerouslySetInnerHTML={{ __html: THEME_INIT_SCRIPT }} />
         <ThemeProvider>
           <AuthProvider>
-            <StoreProvider>
-              <WeightsProvider>
-                <ToastProvider>
-                  <FiltersProvider>
-                    <ResearchQueueProvider>
-                      <AppShell>{children}</AppShell>
-                    </ResearchQueueProvider>
-                  </FiltersProvider>
-                </ToastProvider>
-              </WeightsProvider>
-            </StoreProvider>
+            <SettingsProvider>
+              <StoreProvider>
+                <WeightsProvider>
+                  <ToastProvider>
+                    <FiltersProvider>
+                      <ResearchQueueProvider>
+                        <AppShell>{children}</AppShell>
+                      </ResearchQueueProvider>
+                    </FiltersProvider>
+                  </ToastProvider>
+                </WeightsProvider>
+              </StoreProvider>
+            </SettingsProvider>
           </AuthProvider>
         </ThemeProvider>
       </body>

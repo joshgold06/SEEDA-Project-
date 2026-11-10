@@ -2,6 +2,7 @@ import { createClient } from "@supabase/supabase-js";
 import { z } from "zod";
 import { ExplainError, explainRecord } from "@/lib/ai/explain";
 import { formatMoney } from "@/lib/leads/extract";
+import { DAILY_LIMITS } from "@/lib/limits";
 import { OWNER_NOT_NAMED, type OpportunityRow } from "@/lib/supabase/mappers";
 
 export const dynamic = "force-dynamic";
@@ -10,7 +11,7 @@ export const maxDuration = 60;
 const Body = z.object({ opportunityId: z.string().min(3).max(80) });
 
 // Keeps one person from using up the free AI plan for everyone, since anyone can sign up. Counted apart from email drafts.
-const DAILY_LIMIT = 30;
+const DAILY_LIMIT = DAILY_LIMITS.explain;
 
 export async function POST(request: Request) {
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL;

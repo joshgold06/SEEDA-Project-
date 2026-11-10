@@ -1,5 +1,6 @@
 import { createClient } from "@supabase/supabase-js";
 import { z } from "zod";
+import { DAILY_LIMITS } from "@/lib/limits";
 import { contractorsOf } from "@/lib/leads/people";
 import { OWNER_NOT_NAMED, type OpportunityRow } from "@/lib/supabase/mappers";
 import { researchLead, ResearchError } from "@/lib/research/run";
@@ -12,7 +13,7 @@ export const maxDuration = 60;
 const Body = z.object({ opportunityId: z.string().min(3).max(80) });
 
 // Keeps one person from using up the free search and AI plans for everyone.
-const DAILY_LIMIT = 25;
+const DAILY_LIMIT = DAILY_LIMITS.research;
 const DEFAULT_MODEL = "gemini-3.6-flash";
 
 export async function POST(request: Request) {

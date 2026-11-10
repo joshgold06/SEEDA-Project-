@@ -7,6 +7,7 @@ import { getPreviousVisit, isNewSince } from "./lastVisit";
 import { contractorsOf } from "./leads/people";
 import { regionOf } from "./leads/geo";
 import { ACTIVE_REGIONS, INDUSTRIES, SIGNAL_PHASE_TAG, type Region } from "./leads/taxonomy";
+import { MIN_SCORE_CHOICES, useSettings } from "./settings";
 import { createClient, isSupabaseConfigured } from "./supabase/client";
 import { useToast } from "@/components/Toast";
 import { useWeights } from "./weights";
@@ -27,7 +28,7 @@ export interface Filters {
 export const NO_FILTERS: Filters = { regions: [], industries: [], signals: [], minScore: 0, contractorOnly: false, watchedOnly: false, newOnly: false };
 
 export const SIGNAL_CHOICES: string[] = Object.values(SIGNAL_PHASE_TAG);
-export const SCORE_CHOICES = [0, 50, 65];
+export const SCORE_CHOICES = MIN_SCORE_CHOICES;
 
 export interface SavedView {
   id: string;
@@ -123,6 +124,23 @@ export function FiltersProvider({ children }: { children: React.ReactNode }) {
       // unreadable: start with no filters
     }
   }, [storageKey]);
+
+  // A person's default provinces and minimum score (from Settings) are where the list starts, but only until they
+  // have set filters of their own: what they chose last time always wins.
+  const { settings, loaded: settingsLoaded } = useSettings();
+  const defaultsFor = useRef<string | null>(null);
+  useEffect(() => {
+    if (!settingsLoaded || !storageKey || defaultsFor.current === storageKey) return;
+    defaultsFor.current = storageKey;
+    try {
+      if (window.localStorage.getItem(storageKey)) return;
+    } catch {
+      return;
+    }
+    if (settings.defaultRegions.length || settings.defaultMinScore > 0) {
+      setFiltersState(sanitizeFilters({ ...NO_FILTERS, regions: settings.defaultRegions, minScore: settings.defaultMinScore }));
+    }
+  }, [settingsLoaded, storageKey, settings.defaultRegions, settings.defaultMinScore]);
 
   const setFilters = useCallback(
     (next: Filters | ((prev: Filters) => Filters)) => {

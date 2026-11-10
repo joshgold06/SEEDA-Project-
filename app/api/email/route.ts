@@ -3,6 +3,7 @@ import { z } from "zod";
 import { EmailAiError, writeEmail } from "@/lib/ai/email";
 import { contractorsOf } from "@/lib/leads/people";
 import { formatMoney } from "@/lib/leads/extract";
+import { DAILY_LIMITS } from "@/lib/limits";
 import { rowToContact, type ContactRow } from "@/lib/contacts";
 import { OWNER_NOT_NAMED, type OpportunityRow } from "@/lib/supabase/mappers";
 import { rowToResearch, type ResearchDbRow } from "@/lib/research/types";
@@ -19,10 +20,12 @@ const Body = z.object({
   instruction: z.string().max(300).optional(),
   currentBody: z.string().max(3000).optional(),
   senderName: z.string().min(1).max(80),
+  /** The company line from the person's outreach defaults; the default is used when it is left out. */
+  senderCompany: z.string().min(1).max(80).optional(),
 });
 
 // Keeps one person from using up the free AI plan for everyone, since anyone can sign up.
-const DAILY_LIMIT = 20;
+const DAILY_LIMIT = DAILY_LIMITS.email;
 
 export async function POST(request: Request) {
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
@@ -85,7 +88,7 @@ export async function POST(request: Request) {
     const result = await writeEmail(
       {
         senderName: input.senderName.replace(/[\r\n]+/g, " ").trim(),
-        senderCompany: "SEEDA (EPCMst network)",
+        senderCompany: input.senderCompany?.replace(/[\r\n]+/g, " ").trim() || "SEEDA (EPCMst network)",
         lead: {
           headline: lead.full_title ?? lead.title,
           location: lead.location,
