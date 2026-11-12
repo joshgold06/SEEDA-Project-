@@ -26,6 +26,7 @@ function describeAuthError(err: AuthError | null): AuthResult {
     return { code: "already_registered", error: "An account with this email already exists. Use Sign In instead." };
   }
   if (code === "weak_password") return { code, error: "That password is too weak. Use at least 6 characters, ideally a mix of letters and numbers." };
+  if (code === "same_password") return { code, error: "Choose a password that is different from your current one." };
   if (code === "signup_disabled") return { code, error: "New sign-ups are turned off for this app." };
   return { code: code || undefined, error: err.message };
 }
@@ -54,6 +55,12 @@ interface AuthContextValue {
   loading: boolean;
   /** Set when a sign-in link or Google redirect landed here but failed to log the user in. */
   redirectError: string | null;
+  /** True while the person is in the temporary session started by a password-reset email link. */
+  passwordRecovery: boolean;
+  /** Emails a reset link. It succeeds the same way whether or not the address has an account. */
+  requestPasswordReset: (email: string) => Promise<AuthResult>;
+  /** Saves the new password for the recovery session. The caller then signs out and sends the person to sign in. */
+  updatePassword: (password: string) => Promise<AuthResult>;
   signUp: (email: string, password: string, name?: PersonName) => Promise<SignUpResult>;
   signIn: (email: string, password: string) => Promise<AuthResult>;
   resendConfirmation: (email: string) => Promise<AuthResult>;
@@ -102,6 +109,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [session, setSession] = useState<Session | null>(null);
   const [loading, setLoading] = useState(true);
   const [redirectError, setRedirectError] = useState<string | null>(null);
+  const [passwordRecovery, setPasswordRecovery] = useState(false);
 
   useEffect(() => {
     // A sign-in link only works in the browser that requested it (PKCE), and links
@@ -121,7 +129,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         );
       }
     });
-    const { data: listener } = supabase.auth.onAuthStateChange((_event, newSession) => {
+    const { data: listener } = supabase.auth.onAuthStateChange((event, newSession) => {
+      // The email link starts a temporary session and says so with this event. It is kept here, where the listener
+      // exists from the first moment, because it fires once while the page is still loading.
+      if (event === "PASSWORD_RECOVERY") setPasswordRecovery(true);
+      if (event === "SIGNED_OUT") setPasswordRecovery(false);
       setSession(newSession);
       setLoading(false);
     });
@@ -202,6 +214,31 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     [supabase]
   );
 
+  // redirectTo is the page the email link opens. It must also be in Supabase's Redirect URLs list, or Supabase
+  // sends the person to the Site URL instead and they land on the home page already signed in, with no way to
+  // choose a password.
+  const requestPasswordReset = useCallback(
+    async (email: string): Promise<AuthResult> => {
+      const { error } = await supabase.auth.resetPasswordForEmail(email, { redirectTo: `${window.location.origin}/reset-password` });
+      if (!error) return { error: null };
+      const result = describeAuthError(error);
+      if (result.code === "rate_limit") return result;
+      // Supabase gives the same answer for an address with no account, so a failure here is about sending, never
+      // about the address. The real error is logged; the person is told something friendly.
+      console.warn("EPCMst: could not send the password reset email.", error);
+      return { code: "send_failed", error: "We couldn't send the email just now. Please try again in a minute." };
+    },
+    [supabase]
+  );
+
+  const updatePassword = useCallback(
+    async (password: string): Promise<AuthResult> => {
+      const { error } = await supabase.auth.updateUser({ password });
+      return describeAuthError(error);
+    },
+    [supabase]
+  );
+
   const signOut = useCallback(async () => {
     await supabase.auth.signOut();
   }, [supabase]);
@@ -213,6 +250,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       profile: deriveProfile(session?.user ?? null),
       loading,
       redirectError,
+      passwordRecovery,
+      requestPasswordReset,
+      updatePassword,
       signUp,
       signIn,
       resendConfirmation,
@@ -221,7 +261,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       updateName,
       signOut,
     }),
-    [session, loading, redirectError, signUp, signIn, resendConfirmation, signInWithMagicLink, signInWithGoogle, updateName, signOut]
+    [session, loading, redirectError, passwordRecovery, requestPasswordReset, updatePassword, signUp, signIn, resendConfirmation, signInWithMagicLink, signInWithGoogle, updateName, signOut]
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

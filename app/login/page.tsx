@@ -4,14 +4,20 @@ import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { EpcmstLogo } from "@/components/EpcmstLogo";
 import { useAuth } from "@/lib/AuthContext";
+import { PASSWORD_MIN_LENGTH } from "@/lib/passwordRules";
 
 const field = "mt-1 h-9 w-full rounded border border-line bg-surface px-3 text-[13px] outline-none focus:border-neutral-500";
+// Supabase allows about one reset email a minute for an address; the button waits the same time.
+const RESET_COOLDOWN_SECONDS = 60;
 
 export default function LoginPage() {
-  const { user, loading, redirectError, signIn, signUp, resendConfirmation, signInWithMagicLink, signInWithGoogle } = useAuth();
+  const { user, loading, redirectError, signIn, signUp, resendConfirmation, requestPasswordReset, signInWithMagicLink, signInWithGoogle } = useAuth();
   const router = useRouter();
 
-  const [mode, setMode] = useState<"signin" | "signup">("signin");
+  const [mode, setMode] = useState<"signin" | "signup" | "reset">("signin");
+  const [resetSent, setResetSent] = useState(false);
+  const [resetBusy, setResetBusy] = useState(false);
+  const [cooldown, setCooldown] = useState(0);
   const [firstName, setFirstName] = useState("");
   const [lastName, setLastName] = useState("");
   const [email, setEmail] = useState("");
@@ -34,11 +40,42 @@ export default function LoginPage() {
     if (redirectError) setError(redirectError);
   }, [redirectError]);
 
-  function switchMode(next: "signin" | "signup") {
+  // After a successful reset the person is sent back here with ?reset=done.
+  useEffect(() => {
+    if (new URLSearchParams(window.location.search).get("reset") === "done") {
+      setNotice("Your password was updated. Sign in with your new password.");
+      window.history.replaceState(null, "", "/login");
+    }
+  }, []);
+
+  useEffect(() => {
+    if (cooldown <= 0) return;
+    const timer = setTimeout(() => setCooldown((s) => s - 1), 1000);
+    return () => clearTimeout(timer);
+  }, [cooldown]);
+
+  function switchMode(next: "signin" | "signup" | "reset") {
     setMode(next);
     setError(null);
     setErrorCode(undefined);
     setNotice(null);
+    setResetSent(false);
+  }
+
+  async function handleResetSubmit(e: React.FormEvent) {
+    e.preventDefault();
+    if (!email.trim() || cooldown > 0) return;
+    setError(null);
+    setResetBusy(true);
+    const { error: resetError } = await requestPasswordReset(email.trim());
+    setResetBusy(false);
+    if (resetError) {
+      setError(resetError);
+      return;
+    }
+    // The same message every time, so the form never reveals which addresses have an account.
+    setResetSent(true);
+    setCooldown(RESET_COOLDOWN_SECONDS);
   }
 
   async function handlePasswordSubmit(e: React.FormEvent) {
@@ -108,6 +145,32 @@ export default function LoginPage() {
           <p className="mt-3 text-[13px] text-muted">Sign in to continue to your pipeline.</p>
         </div>
 
+        {mode === "reset" ? (
+          <div className="mt-8 rounded-lg border border-line bg-surface p-6 shadow-sm">
+            <h2 className="text-[15px] font-semibold">Reset your password</h2>
+            <p className="mt-1 text-[12.5px] leading-relaxed text-neutral-500">
+              Enter the email you signed up with. We&apos;ll send a link to choose a new password.
+            </p>
+            <form onSubmit={handleResetSubmit} className="mt-4 space-y-3 text-[12.5px] font-medium text-neutral-700">
+              <label className="block">
+                Email
+                <input type="email" required autoComplete="email" value={email} onChange={(e) => setEmail(e.target.value)} className={field} />
+              </label>
+              {error && <p role="alert" className="text-[12px] font-normal leading-relaxed text-red-600">{error}</p>}
+              {resetSent && (
+                <p role="status" className="rounded border border-brand-line bg-brand-soft px-3 py-2 text-[12px] font-normal leading-relaxed text-brand-dark">
+                  If that email has an account, we sent a link to reset the password. It can take a minute, so check spam too. Open the link in this same browser.
+                </p>
+              )}
+              <button type="submit" disabled={resetBusy || cooldown > 0} className="h-9 w-full rounded bg-action text-[12.5px] font-semibold text-white transition-colors hover:bg-action-hover disabled:opacity-50">
+                {resetBusy ? "Sending…" : cooldown > 0 ? `Send again in ${cooldown}s` : resetSent ? "Send Again" : "Send Reset Link"}
+              </button>
+            </form>
+            <button type="button" onClick={() => switchMode("signin")} className="mt-4 text-[12.5px] font-medium text-brand-dark underline">
+              ← Back to Sign In
+            </button>
+          </div>
+        ) : (
         <div className="mt-8 rounded-lg border border-line bg-surface p-6 shadow-sm">
           <div className="flex rounded-md border border-line p-0.5 text-[12.5px] font-medium">
             <button onClick={() => switchMode("signin")} className={`flex-1 rounded py-1.5 transition-colors ${mode === "signin" ? "bg-action text-white" : "text-neutral-600 hover:text-ink"}`}>
@@ -135,10 +198,17 @@ export default function LoginPage() {
               Email
               <input type="email" required value={email} onChange={(e) => setEmail(e.target.value)} className={field} />
             </label>
-            <label className="block">
-              Password
-              <input type="password" required minLength={6} value={password} onChange={(e) => setPassword(e.target.value)} className={field} />
-            </label>
+            <div>
+              <div className="flex items-center justify-between">
+                <label htmlFor="login-password">Password</label>
+                {mode === "signin" && (
+                  <button type="button" onClick={() => switchMode("reset")} className="text-[12px] font-medium text-brand-dark underline">
+                    Forgot password?
+                  </button>
+                )}
+              </div>
+              <input id="login-password" type="password" required minLength={PASSWORD_MIN_LENGTH} autoComplete={mode === "signin" ? "current-password" : "new-password"} value={password} onChange={(e) => setPassword(e.target.value)} className={field} />
+            </div>
             {error && <p role="alert" className="text-[12px] leading-relaxed text-red-600">{error}</p>}
             {notice && <p role="status" className="rounded border border-brand-line bg-brand-soft px-3 py-2 text-[12px] font-normal leading-relaxed text-brand-dark">{notice}</p>}
             {errorCode === "email_not_confirmed" && email.trim() && (
@@ -187,6 +257,7 @@ export default function LoginPage() {
             Sign in with Google
           </button>
         </div>
+        )}
       </div>
     </div>
   );
