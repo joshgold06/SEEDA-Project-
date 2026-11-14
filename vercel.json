@@ -2,5 +2,8 @@
   "framework": "nextjs",
   "buildCommand": "npm run build",
   "installCommand": "npm install",
-  "crons": [{ "path": "/api/cron/daily", "schedule": "0 11 * * *" }]
+  "crons": [
+    { "path": "/api/cron/daily", "schedule": "0 11 * * *" },
+    { "path": "/api/cron/insights", "schedule": "20 11 * * *" }
+  ]
 }
