@@ -2,7 +2,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Opportunity } from "../data";
 import { LEAD_SELECT, opportunityToRow, rowToOpportunity, type OpportunityRow } from "../supabase/mappers";
 import { relatedIndex } from "../related";
-import { contractorNamedEvent, newLeadEvent, newStoryEvent, recordEvents, stageChangeEvent, type LeadEventInput } from "./events";
+import { contractorNamedEvent, isStrongStoryMatch, newLeadEvent, newStoryEvent, recordEvents, stageChangeEvent, type LeadEventInput } from "./events";
 import { CONTRACTOR_PREFIX } from "./people";
 import { buildCandidate, dedupeLeads, toOpportunity } from "./extract";
 import { fetchGoogleNews } from "./googleNews";
@@ -207,7 +207,7 @@ export async function ingest(source: IngestSource, opts: IngestOptions): Promise
       const lookup = relatedIndex([...known.filter((k) => !freshIds.has(k.id)), ...freshOpps]);
       for (const [i, lead] of fresh.entries()) {
         for (const match of lookup.project(freshOpps[i])) {
-          if (!freshIds.has(match.lead.id)) events.push(newStoryEvent(match.lead.id, lead, match.reason));
+          if (!freshIds.has(match.lead.id) && isStrongStoryMatch(match)) events.push(newStoryEvent(match.lead.id, lead, match.reason));
         }
       }
       // Later scans in the same run see these leads without reading them again.

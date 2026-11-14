@@ -33,6 +33,32 @@ export function newLeadEvent(lead: Lead): LeadEventInput {
   };
 }
 
+// Words that describe nearly any energy or mining project in Western Canada. Two headlines sharing only these are about
+// the same kind of thing, not necessarily the same project.
+const GENERIC = new Set(
+  ("final investment decision oil sands gas natural pipeline plant project projects expansion construction approval approved energy power mine mining hydro facility " +
+    "canada canadian alberta british columbia saskatchewan manitoba ontario government new plan plans billion million province provincial federal company announces announced " +
+    "petroleum refinery potash carbon capture hydrogen lithium nuclear transmission terminal export exports").split(" ")
+);
+
+export interface StoryMatch {
+  basis: "value" | "words";
+  distinct: string[];
+  overlap: number;
+}
+
+/**
+ * Whether a possible match is strong enough to tell people "new coverage of a project you have". The match on the lead
+ * page is a hint a person can weigh, but a trigger is pushed at them, so it must clear a higher bar: the same dollar
+ * figure (the match already needs two shared words and differing figures rule a pair out), or a large overlap on at
+ * least two words that are not generic project vocabulary.
+ */
+export function isStrongStoryMatch(match: StoryMatch): boolean {
+  if (match.basis === "value") return true;
+  const names = match.distinct.filter((w) => !GENERIC.has(w));
+  return names.length >= 2 && match.overlap >= 0.5;
+}
+
 /** A new story that looks like it is about a project already saved: the trigger belongs to the saved lead. */
 export function newStoryEvent(existingLeadId: string, story: Lead, reason: string): LeadEventInput {
   return {

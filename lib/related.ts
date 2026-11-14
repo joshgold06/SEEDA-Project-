@@ -16,6 +16,12 @@ export interface RelatedLead {
   /** Why it looks like the same project, in plain words. */
   reason: string;
   shared: number;
+  /** What the match rests on: both give the same dollar figure, or they share wording. */
+  basis: "value" | "words";
+  /** The shared words that are not common across leads. */
+  distinct: string[];
+  /** Shared words as a share of the shorter headline's words. */
+  overlap: number;
 }
 
 const wordsOf = (o: Opportunity): Set<string> =>
@@ -86,10 +92,13 @@ export function relatedIndex(all: Opportunity[]) {
       // Two different dollar figures mean two different projects, whatever the wording.
       if (bothValued && !sameValue) continue;
       let reason: string | null = null;
-      if (sameValue && shared.length >= 2) reason = `Both give about ${formatMoney(target.value!)}`;
-      else if (!bothValued && distinct.length >= 2 && shared.length >= 3 && shared.length / smaller >= 0.4) reason = `Both mention ${distinct.slice(0, 3).join(", ")}`;
+      let basis: RelatedLead["basis"] = "words";
+      if (sameValue && shared.length >= 2) {
+        reason = `Both give about ${formatMoney(target.value!)}`;
+        basis = "value";
+      } else if (!bothValued && distinct.length >= 2 && shared.length >= 3 && shared.length / smaller >= 0.4) reason = `Both mention ${distinct.slice(0, 3).join(", ")}`;
       else if (!bothValued && distinct.length >= 1 && shared.length >= 4 && shared.length / smaller >= 0.5) reason = `Both mention ${distinct.slice(0, 3).join(", ")}`;
-      if (reason) out.push({ lead: other, reason, shared: shared.length });
+      if (reason) out.push({ lead: other, reason, shared: shared.length, basis, distinct, overlap: shared.length / smaller });
     }
     return out.sort((a, b) => b.shared - a.shared).slice(0, 5);
   };
