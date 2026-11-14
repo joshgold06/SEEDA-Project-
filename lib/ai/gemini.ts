@@ -68,7 +68,7 @@ export async function callGeminiJson({ system, prompt, schema, apiKey, model }: 
     throw new GeminiError(timedOut && !res ? "The AI model didn't answer in time. Try again." : "The AI model is busy right now. Try again in a minute.", 503, "busy");
   }
   if (!res.ok) logServiceFailure("Gemini call", { status: res.status, model: models[0], reason: "service answered with an error", body: await res.clone().text().catch(() => "") });
-  if (res.status === 400 || res.status === 401 || res.status === 403) throw new GeminiError("The AI service rejected the request. Check GEMINI_API_KEY and GEMINI_MODEL.", 502, "not_configured");
+  if (res.status === 400 || res.status === 401 || res.status === 403) throw new GeminiError("The AI summary isn't available right now. The rest of this lead still works, and you can try again later.", 502, "not_configured");
   if (!res.ok) throw new GeminiError(`The AI model failed (${res.status}).`, 502, "failed");
 
   const data = (await res.json().catch(() => null)) as {

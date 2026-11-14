@@ -89,7 +89,7 @@ async function tavilySearch(query: string, key: string): Promise<TavilyResult[]>
     throw new ResearchError("The web search didn't answer in time.", 502, "search_failed");
   }
   if (!res.ok) logServiceFailure("Tavily search", { status: res.status, reason: "service answered with an error", body: await res.clone().text().catch(() => "") });
-  if (res.status === 401) throw new ResearchError("The search service rejected its key. Check TAVILY_API_KEY.", 502, "not_configured");
+  if (res.status === 401) throw new ResearchError("Web research isn't available right now. The rest of this lead still works, and you can try again later.", 502, "not_configured");
   if (res.status === 432 || res.status === 433) throw new ResearchError("The search plan's monthly allowance is used up.", 503, "search_failed");
   if (res.status === 429) throw new ResearchError("The search service is busy. Try again in a minute.", 503, "search_failed");
   if (!res.ok) throw new ResearchError(`The web search failed (${res.status}).`, 502, "search_failed");
