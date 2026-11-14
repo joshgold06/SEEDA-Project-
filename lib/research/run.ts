@@ -1,6 +1,7 @@
 import { z } from "zod";
 import { callGeminiJson, GeminiError } from "../ai/gemini";
 import { PUBLIC_OWNER_PATTERN } from "../leads/taxonomy";
+import { logServiceFailure } from "../log";
 import { findingId, safeHttpUrl, type Finding, type FindingsDoc, type Source } from "./types";
 
 // Server-side only. Reads the web for one lead with a search service (Tavily), has an AI model
@@ -83,9 +84,11 @@ async function tavilySearch(query: string, key: string): Promise<TavilyResult[]>
       signal: AbortSignal.timeout(SEARCH_TIMEOUT_MS),
       cache: "no-store",
     });
-  } catch {
+  } catch (err) {
+    logServiceFailure("Tavily search", { reason: "no answer in time or connection failed", body: err instanceof Error ? err.message : undefined });
     throw new ResearchError("The web search didn't answer in time.", 502, "search_failed");
   }
+  if (!res.ok) logServiceFailure("Tavily search", { status: res.status, reason: "service answered with an error", body: await res.clone().text().catch(() => "") });
   if (res.status === 401) throw new ResearchError("The search service rejected its key. Check TAVILY_API_KEY.", 502, "not_configured");
   if (res.status === 432 || res.status === 433) throw new ResearchError("The search plan's monthly allowance is used up.", 503, "search_failed");
   if (res.status === 429) throw new ResearchError("The search service is busy. Try again in a minute.", 503, "search_failed");

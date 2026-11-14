@@ -2,6 +2,8 @@
 // by both "Research this lead" and "Write with AI". The free Gemini models answer "high demand"
 // (503) in bursts, so a busy model is skipped for the next one and the call is retried.
 
+import { logServiceFailure } from "../log";
+
 export class GeminiError extends Error {
   constructor(
     message: string,
@@ -62,8 +64,10 @@ export async function callGeminiJson({ system, prompt, schema, apiKey, model }: 
   }
 
   if (!res || BUSY_STATUSES.has(res.status)) {
+    logServiceFailure("Gemini call", { status: res?.status, model: models.join(" > "), reason: timedOut && !res ? "no answer in time" : "busy or rate-limited on every model tried" });
     throw new GeminiError(timedOut && !res ? "The AI model didn't answer in time. Try again." : "The AI model is busy right now. Try again in a minute.", 503, "busy");
   }
+  if (!res.ok) logServiceFailure("Gemini call", { status: res.status, model: models[0], reason: "service answered with an error", body: await res.clone().text().catch(() => "") });
   if (res.status === 400 || res.status === 401 || res.status === 403) throw new GeminiError("The AI service rejected the request. Check GEMINI_API_KEY and GEMINI_MODEL.", 502, "not_configured");
   if (!res.ok) throw new GeminiError(`The AI model failed (${res.status}).`, 502, "failed");
 
