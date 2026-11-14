@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
-import { Layers, Map, Search, Settings, TrendingUp, User, Zap } from "lucide-react";
+import { Layers, Map, Newspaper, Search, Settings, TrendingUp, User, Zap } from "lucide-react";
 import { isTyping, SHORTCUTS } from "@/lib/keys";
 import { useStore } from "@/lib/store";
 import { useWeights } from "@/lib/weights";
@@ -18,6 +18,7 @@ interface Item {
 }
 
 const PAGES: Item[] = [
+  { key: "p-brief", label: "Today's brief", href: "/brief", icon: <Newspaper className="size-4" /> },
   { key: "p-scan", label: "Morning Scan", href: "/scan", icon: <Zap className="size-4" /> },
   { key: "p-map", label: "Map", href: "/map", icon: <Map className="size-4" /> },
   { key: "p-shortlist", label: "Shortlist", href: "/shortlist", icon: <Layers className="size-4" /> },

@@ -7,6 +7,7 @@ import { useAuth } from "@/lib/AuthContext";
 import type { Explained } from "@/lib/ai/explain";
 import { requestExplain } from "@/lib/ai/explainClient";
 import type { Opportunity } from "@/lib/data";
+import { usePreparedSummary } from "@/lib/triggers";
 
 const NOT_STATED = "Not stated in the record";
 
@@ -27,8 +28,11 @@ export function AiExplain({ opp }: { opp: Opportunity }) {
   const [summary, setSummary] = useState<Explained | null>(null);
   const [forId, setForId] = useState<string | null>(null);
 
+  // A summary already prepared by the daily run is shown straight away; pressing the button makes a fresh one.
+  const prepared = usePreparedSummary(opp.id);
   // A summary belongs to one lead; moving to another lead must not show it.
-  const shown = forId === opp.id ? summary : null;
+  const shown = forId === opp.id ? summary : (prepared?.summary ?? null);
+  const preparedOnly = forId !== opp.id && prepared !== null;
 
   async function run() {
     if (!session) return;
@@ -89,7 +93,10 @@ export function AiExplain({ opp }: { opp: Opportunity }) {
               Left out because the record doesn&apos;t back it up: {shown.dropped.join("; ")}.
             </p>
           )}
-          <p className="text-[11px] text-neutral-500">Written by an AI from the record text only. Check the source document before you rely on it.</p>
+          <p className="text-[11px] text-neutral-500">
+            {preparedOnly && prepared ? `Prepared automatically on ${new Date(prepared.generatedAt).toLocaleDateString("en-CA", { month: "short", day: "numeric" })}. ` : ""}
+            Written by an AI from the record text only. Check the source document before you rely on it.
+          </p>
         </div>
       )}
     </section>

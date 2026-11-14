@@ -1,9 +1,11 @@
 import { createClient } from "@supabase/supabase-js";
 import { z } from "zod";
-import { ExplainError, explainRecord } from "@/lib/ai/explain";
-import { formatMoney } from "@/lib/leads/extract";
+import { ExplainError } from "@/lib/ai/explain";
+import { explainSavedLead } from "@/lib/ai/explainLead";
+import { storeInsight } from "@/lib/leads/insights";
 import { DAILY_LIMITS } from "@/lib/limits";
-import { OWNER_NOT_NAMED, type OpportunityRow } from "@/lib/supabase/mappers";
+import type { OpportunityRow } from "@/lib/supabase/mappers";
+import { createServiceClient } from "@/lib/supabase/service";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 60;
@@ -50,21 +52,11 @@ export async function POST(request: Request) {
   if ((count ?? 0) >= DAILY_LIMIT) return Response.json({ error: `You've used ${DAILY_LIMIT} AI summaries in the last day. Try again tomorrow.`, code: "limit" }, { status: 429 });
   await supabase.from("ai_usage").insert({ user_id: userId, kind: "explain" });
 
-  const org = Array.isArray(lead.organizations) ? lead.organizations[0] : lead.organizations;
-  const owner = org?.name && org.name !== OWNER_NOT_NAMED ? org.name : lead.involved?.primary && lead.involved.primary !== OWNER_NOT_NAMED ? lead.involved.primary : undefined;
-
   try {
-    const result = await explainRecord(
-      {
-        title: lead.full_title ?? lead.title,
-        kind: lead.type,
-        location: lead.location,
-        owner,
-        // The saved overview holds the record's own description; a news lead has only its headline.
-        text: [lead.overview, lead.value ? `Stated value: ${formatMoney(Number(lead.value))}` : null, lead.deadline_text].filter(Boolean).join(" "),
-      },
-      { apiKey, model: process.env.GEMINI_MODEL || undefined }
-    );
+    const result = await explainSavedLead(lead, { apiKey, model: process.env.GEMINI_MODEL || undefined });
+    // Kept for everyone, so the next person to open this lead finds the summary already waiting.
+    const admin = createServiceClient();
+    if (admin) await storeInsight(admin, lead.id, result);
     return Response.json(result);
   } catch (err) {
     if (err instanceof ExplainError) return Response.json({ error: err.message, code: err.code }, { status: err.status });

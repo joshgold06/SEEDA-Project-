@@ -2,12 +2,13 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { Layers, Map, Settings, TrendingUp, Zap } from "lucide-react";
+import { Layers, Map, Newspaper, Settings, TrendingUp, Zap } from "lucide-react";
 import { EpcmstMark } from "./EpcmstLogo";
 import { useAuth } from "@/lib/AuthContext";
 import { Avatar } from "./ui";
 
 const NAV = [
+  { href: "/brief", label: "Today's brief", icon: Newspaper },
   { href: "/scan", label: "Morning Scan", icon: Zap },
   { href: "/map", label: "Map", icon: Map },
   { href: "/shortlist", label: "Shortlist", icon: Layers },

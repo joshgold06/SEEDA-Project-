@@ -24,7 +24,7 @@ const IDLE: RefreshState = { running: false, done: 0, total: SEARCH_PRESETS.leng
  * Runs every seed search in turn so the Morning Scan is never empty. Starts by itself
  * on a first visit or when the leads are stale, and can also be started by hand.
  */
-export function useAutoRefresh(visibleCount: number) {
+export function useAutoRefresh(visibleCount: number, auto = true) {
   const { session, user, profile } = useAuth();
   const { loaded, reset } = useStore();
   const [state, setState] = useState<RefreshState>(IDLE);
@@ -56,7 +56,7 @@ export function useAutoRefresh(visibleCount: number) {
   }, [session, user, profile?.initials, reset]);
 
   useEffect(() => {
-    if (!loaded || !session || !user || started.current) return;
+    if (!auto || !loaded || !session || !user || started.current) return;
     let last = 0;
     try {
       last = Number(window.localStorage.getItem(`epcmst-auto-run:${user.id}`) ?? 0);
@@ -68,7 +68,7 @@ export function useAutoRefresh(visibleCount: number) {
       started.current = true;
       void refresh();
     }
-  }, [loaded, session, user, visibleCount, refresh]);
+  }, [auto, loaded, session, user, visibleCount, refresh]);
 
   return { ...state, refresh };
 }

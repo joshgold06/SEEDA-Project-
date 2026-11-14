@@ -125,7 +125,7 @@ export function rowToOpportunity(row: OpportunityRow, action?: LeadActionRow): O
 }
 
 /** The shared part of a lead. Per-user choices and the company name live in other tables. */
-export function opportunityToRow(o: Opportunity, ids: { discoveredBy: string; organizationId: string | null }) {
+export function opportunityToRow(o: Opportunity, ids: { discoveredBy: string | null; organizationId: string | null }) {
   return {
     id: o.id,
     ref: o.ref,
