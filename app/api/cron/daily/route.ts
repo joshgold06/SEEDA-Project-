@@ -20,13 +20,14 @@ const INSIGHT_LIMIT = 8;
 const INSIGHT_START_BEFORE_MS = 38_000;
 
 function authorised(request: Request, secret: string): boolean {
-  const given = Buffer.from(request.headers.get("authorization") ?? "");
+  const given = Buffer.from((request.headers.get("authorization") ?? "").trim());
   const wanted = Buffer.from(`Bearer ${secret}`);
   return given.length === wanted.length && timingSafeEqual(given, wanted);
 }
 
 export async function GET(request: Request) {
-  const secret = process.env.CRON_SECRET;
+  // A stray space, line break or pair of quote marks pasted into the hosting settings is easy to miss, so they are ignored.
+  const secret = process.env.CRON_SECRET?.trim().replace(/^(["'])(.*)\1$/, "$2").trim();
   if (!secret || secret.length < 16) {
     return Response.json({ error: "CRON_SECRET is not set (or is shorter than 16 characters)." }, { status: 503 });
   }
