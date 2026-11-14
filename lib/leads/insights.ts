@@ -44,32 +44,42 @@ export async function prepareInsights(admin: SupabaseClient, opts: { apiKey: str
     .limit(60);
   const todo = ((rows ?? []) as unknown as OpportunityRow[]).filter((r) => !done.has(r.id)).slice(0, opts.limit);
 
-  const CONCURRENCY = 3;
-  for (let i = 0; i < todo.length; i += CONCURRENCY) {
+  // One at a time with a short pause: the free AI plan allows only a few requests a minute, and three at once were
+  // answered "busy". A busy answer is retried once after a wait; the run only gives up after two leads in a row stay busy.
+  const PAUSE_MS = 2_500;
+  const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
+  const attempt = async (lead: OpportunityRow): Promise<"ok" | "busy" | "failed"> => {
+    try {
+      const summary = await explainSavedLead(lead, { apiKey: opts.apiKey, model: opts.model });
+      return (await storeInsight(admin, lead.id, summary)) ? "ok" : "failed";
+    } catch (err) {
+      return (err as { code?: string }).code === "busy" ? "busy" : "failed";
+    }
+  };
+
+  let busyInARow = 0;
+  for (const lead of todo) {
     if (Date.now() - startedAt > opts.budgetMs) {
       result.stoppedBecause = "time";
       break;
     }
-    const batch = todo.slice(i, i + CONCURRENCY);
-    const outcomes = await Promise.all(
-      batch.map(async (lead) => {
-        try {
-          const summary = await explainSavedLead(lead, { apiKey: opts.apiKey, model: opts.model });
-          return (await storeInsight(admin, lead.id, summary)) ? ("ok" as const) : ("failed" as const);
-        } catch (err) {
-          const code = (err as { code?: string }).code;
-          return code === "busy" ? ("busy" as const) : ("failed" as const);
-        }
-      })
-    );
-    for (const o of outcomes) {
-      if (o === "ok") result.prepared++;
-      else result.failed++;
+    let outcome = await attempt(lead);
+    if (outcome === "busy" && Date.now() - startedAt + 6_000 < opts.budgetMs) {
+      await sleep(5_000);
+      outcome = await attempt(lead);
     }
-    if (outcomes.includes("busy")) {
-      result.stoppedBecause = "busy";
-      break;
+    if (outcome === "ok") {
+      result.prepared++;
+      busyInARow = 0;
+    } else {
+      result.failed++;
+      busyInARow = outcome === "busy" ? busyInARow + 1 : 0;
+      if (busyInARow >= 2) {
+        result.stoppedBecause = "busy";
+        break;
+      }
     }
+    await sleep(PAUSE_MS);
   }
   return result;
 }

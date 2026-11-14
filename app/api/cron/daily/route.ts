@@ -31,11 +31,7 @@ export async function GET(request: Request) {
   if (!secret || secret.length < 16) {
     return Response.json({ error: "CRON_SECRET is not set (or is shorter than 16 characters)." }, { status: 503 });
   }
-  if (!authorised(request, secret)) {
-    // TEMPORARY: lengths only, never the secret, to find why a typed secret is rejected. Remove once the run works.
-    const received = (request.headers.get("authorization") ?? "").trim().replace(/^Bearer\s+/i, "");
-    return Response.json({ error: "Not allowed.", expectedLength: secret.length, receivedLength: received.length }, { status: 401 });
-  }
+  if (!authorised(request, secret)) return Response.json({ error: "Not allowed." }, { status: 401 });
 
   const admin = createServiceClient();
   if (!admin) return Response.json({ error: "SUPABASE_SERVICE_ROLE_KEY is not set on the server." }, { status: 503 });
