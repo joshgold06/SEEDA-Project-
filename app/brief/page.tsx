@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useMemo, useState } from "react";
 import { CalendarClock, ExternalLink, Loader2, Radio, RefreshCw, Sparkles } from "lucide-react";
+import { ReadyForReview } from "@/components/ReadyForReview";
 import { Breadcrumbs, Button, TopBar } from "@/components/ui";
 import { useAuth } from "@/lib/AuthContext";
 import type { Opportunity } from "@/lib/data";
@@ -89,6 +90,8 @@ export default function BriefPage() {
             </span>
           </div>
         </section>
+
+        <ReadyForReview />
 
         <section className="space-y-4">
           <SectionTitle icon={<Radio className="size-4 text-brand-dark" aria-hidden />} title="Triggers to follow" note="New coverage of a saved project, a register moving a project to a new stage, or a contractor being named. Leads you follow come first." />

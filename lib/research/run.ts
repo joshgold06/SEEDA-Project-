@@ -53,7 +53,7 @@ const shortTitle = (title: string, max = 110) => {
   const t = title
     .replace(/:\s*BC environmental assessment,.*$/i, "")
     .replace(/:\s*\$[\d.]+[MB]\s+building permit$/i, "")
-    .replace(/\s+-\s+[^-]{2,40}$/, "").replace(/["Ã¢â‚¬Å“Ã¢â‚¬Â]/g, "").trim();
+    .replace(/\s+-\s+[^-]{2,40}$/, "").replace(/["\u201C\u201D]/g, "").trim();
   return t.length > max ? t.slice(0, max).replace(/\s+\S*$/, "") : t;
 };
 
@@ -189,9 +189,9 @@ async function callGemini(prompt: string, keys: ResearchKeys): Promise<unknown> 
 export const norm = (s: string) =>
   s
     .toLowerCase()
-    .replace(/[Ã¢â‚¬ËœÃ¢â‚¬â„¢Ã¢â‚¬â€ºÃ¢â‚¬Â²`]/g, "'")
-    .replace(/[Ã¢â‚¬Å“Ã¢â‚¬ÂÃ¢â‚¬Å¾Ã¢â‚¬Â³]/g, '"')
-    .replace(/[Ã¢â‚¬â€œÃ¢â‚¬â€Ã¢Ë†â€™]/g, "-")
+    .replace(/[\u2018\u2019\u201B\u2032`]/g, "'")
+    .replace(/[\u201C\u201D\u201E\u2033]/g, '"')
+    .replace(/[\u2013\u2014\u2212]/g, "-")
     .replace(/\s+/g, " ")
     .trim();
 

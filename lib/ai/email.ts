@@ -103,7 +103,7 @@ export function tidyBody(text: string): string {
 
 /** Keeps the model's answer inside the limits the app promises, whatever it wrote. */
 export function tidy(raw: z.infer<typeof Output>): EmailOutput {
-  const clip = (text: string, max: number) => (text.length > max ? `${text.slice(0, max - 1).trimEnd()}â€¦` : text);
+  const clip = (text: string, max: number) => (text.length > max ? `${text.slice(0, max - 1).trimEnd()}\u2026` : text);
   return {
     subjectA: clip(raw.subject_a.replace(/\s+/g, " ").trim(), 90),
     subjectB: clip(raw.subject_b.replace(/\s+/g, " ").trim(), 90),
