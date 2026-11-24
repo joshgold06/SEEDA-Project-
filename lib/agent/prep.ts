@@ -139,6 +139,7 @@ export async function runAgentOnce(ctx: AgentContext, keys: AgentKeys): Promise<
       doc = await researchLead(toResearchLead(lead), { tavily: keys.tavily, gemini: keys.gemini, model: keys.model });
     } catch (err) {
       // A busy or failing service is not the lead's fault: free it to be tried again later.
+      console.error("EPCMst: prep agent research failed.", JSON.stringify({ lead: lead.id, error: err instanceof Error ? err.message : String(err), kind: err instanceof Error ? err.constructor.name : typeof err }));
       await ctx.admin.from("lead_prep").delete().eq("opportunity_id", lead.id).eq("status", "working");
       ctx.prepared.delete(lead.id);
       return { kind: "retry_later", opportunityId: lead.id, title: lead.title, error: err instanceof Error ? err.message : "The research failed." };

@@ -58,7 +58,7 @@ export async function requestPrepare(token: string): Promise<PrepareOutcome> {
     if (!o) return { ok: false, error: "The agent gave no answer." };
     if (o.kind === "prepared") return { ok: true, prepared: true, message: `Prepared “${o.title}”${o.draft ? " with a drafted email" : " (the email draft failed, so only the research is saved)"}.` };
     if (o.kind === "skipped") return { ok: true, prepared: false, message: `Looked at “${o.title}” but found nothing to act on, so it was skipped. Press again for the next one.` };
-    if (o.kind === "retry_later") return { ok: false, error: "A search or AI service is busy or not answering. Nothing was changed, so try again in a minute." };
+    if (o.kind === "retry_later") return { ok: false, error: `The research on “${o.title}” could not finish${o.error ? `: ${o.error}` : ""} Nothing was changed, so try again in a minute.` };
     return { ok: true, prepared: false, message: o.reason === "daily_cap" ? "The agent has already prepared its leads for today. It limits itself so the free search and AI plans last." : "No new lead is good enough and not a duplicate of one already being worked." };
   } catch {
     return { ok: false, error: "Couldn't reach the server. Check your connection and try again." };
