@@ -5,10 +5,10 @@ import { formatMoney } from "../leads/extract";
 import { loadKnown } from "../leads/ingest";
 import { contractorsOf } from "../leads/people";
 import { relatedIndex } from "../related";
-import { researchLead, type ResearchLead } from "../research/run";
+import { ResearchError, researchLead, type ResearchLead } from "../research/run";
 import { FindingsDocSchema, type Finding, type FindingsDoc } from "../research/types";
 import { OWNER_NOT_NAMED } from "../supabase/mappers";
-import { DAILY_CAP, draftProblems, hasSomethingToAct, isCandidate, judgeTwins, MAX_CHECKED, pickRecipient, SENDER_TOKEN, STALE_WORKING_MINUTES } from "./judge";
+import { DAILY_CAP, draftProblems, hasSomethingToAct, isCandidate, isSetAside, judgeTwins, MAX_CHECKED, pickRecipient, SENDER_TOKEN, SET_ASIDE_HOURS, SET_ASIDE_STEP, shouldClearWorking } from "./judge";
 import type { PrepDraft, PrepStep } from "./types";
 
 // SERVER ONLY. The prep agent. For one good lead it does the first steps of the job a business-development person would
@@ -56,19 +56,22 @@ const DRAFT_STEP = "Drafted the email";
 /** Reads everything the agent needs to decide, once per run. */
 export async function createAgentContext(admin: SupabaseClient): Promise<AgentContext> {
   const startedAt = Date.now();
-  // A run that died half way leaves a "working" row; after a while it is cleared so the lead is tried again.
-  const cutoff = new Date(Date.now() - STALE_WORKING_MINUTES * 60_000).toISOString();
-  await admin.from("lead_prep").delete().eq("status", "working").lt("created_at", cutoff);
+  // A run that died half way leaves a "working" row, and so does a lead set aside after its research failed. Each is
+  // cleared when its wait is over, so the lead can be tried again.
+  const working = await admin.from("lead_prep").select("opportunity_id, created_at, steps").eq("status", "working");
+  const expired = ((working.data ?? []) as { opportunity_id: string; created_at: string; steps: unknown }[]).filter((r) => shouldClearWorking(r, Date.now())).map((r) => r.opportunity_id);
+  if (expired.length) await admin.from("lead_prep").delete().eq("status", "working").in("opportunity_id", expired);
 
   const [known, prep, researched, actions] = await Promise.all([
     loadKnown(admin),
-    admin.from("lead_prep").select("opportunity_id, status"),
+    admin.from("lead_prep").select("opportunity_id, status, steps"),
     admin.from("lead_research").select("opportunity_id"),
     admin.from("lead_actions").select("opportunity_id").in("stage", ["outreach", "pipeline"]),
   ]);
-  const prepRows = (prep.data ?? []) as { opportunity_id: string; status: string }[];
+  const prepRows = (prep.data ?? []) as { opportunity_id: string; status: string; steps: unknown }[];
   const handled = new Set<string>([...prepRows.map((r) => r.opportunity_id), ...((researched.data ?? []) as { opportunity_id: string }[]).map((r) => r.opportunity_id)]);
-  const prepared = new Set(prepRows.filter((r) => r.status === "ready" || r.status === "working").map((r) => r.opportunity_id));
+  // A set-aside lead was never prepared, so it must not stop a twin story about the same project from being prepared.
+  const prepared = new Set(prepRows.filter((r) => r.status === "ready" || (r.status === "working" && !isSetAside(r.steps))).map((r) => r.opportunity_id));
   const underway = new Set(((actions.data ?? []) as { opportunity_id: string }[]).map((r) => r.opportunity_id));
   return { admin, known, lookup: relatedIndex(known), handled, prepared, underway, startedAt };
 }
@@ -173,9 +176,9 @@ export async function runAgent(admin: SupabaseClient, keys: AgentKeys, opts: { m
     // Nothing left to do, or a service is struggling: stop instead of trying again straight away.
     if (outcome.kind === "nothing_to_do" || outcome.kind === "retry_later") break;
   }
-  // With time to spare (a quiet day, or the daily limit reached), finish a draft an earlier run could not write.
-  const last = outcomes[outcomes.length - 1];
-  const completedDraft = last?.kind === "retry_later" ? null : await completeOneMissingDraft(ctx, keys);
+  // With time to spare (a quiet day, the daily limit reached, or research that failed quickly), finish a draft an
+  // earlier run could not write. It checks the time left itself.
+  const completedDraft = await completeOneMissingDraft(ctx, keys);
   return { outcomes, completedDraft, seconds: Math.round((Date.now() - ctx.startedAt) / 1000) };
 }
 
@@ -220,11 +223,18 @@ export async function runAgentOnce(ctx: AgentContext, keys: AgentKeys): Promise<
     try {
       doc = await researchLead(toResearchLead(lead), { tavily: keys.tavily, gemini: keys.gemini, model: keys.model });
     } catch (err) {
-      // A busy or failing service is not the lead's fault: free it to be tried again later.
-      console.error("EPCMst: prep agent research failed.", JSON.stringify({ lead: lead.id, error: err instanceof Error ? err.message : String(err), kind: err instanceof Error ? err.constructor.name : typeof err }));
-      await ctx.admin.from("lead_prep").delete().eq("opportunity_id", lead.id).eq("status", "working");
+      const message = err instanceof Error ? err.message : "The research failed.";
+      console.error("EPCMst: prep agent research failed.", JSON.stringify({ lead: lead.id, error: message, kind: err instanceof Error ? err.constructor.name : typeof err }));
       ctx.prepared.delete(lead.id);
-      return { kind: "retry_later", opportunityId: lead.id, title: lead.title, error: err instanceof Error ? err.message : "The research failed." };
+      if (err instanceof ResearchError && err.code === "not_configured") {
+        // A rejected key fails every lead alike, so no lead is held back for it.
+        await ctx.admin.from("lead_prep").delete().eq("opportunity_id", lead.id).eq("status", "working");
+      } else {
+        // Set this lead aside for a day, so the next run moves on instead of picking the same slow lead again.
+        steps.push(step(SET_ASIDE_STEP, false, `The research could not finish: ${message} It will be tried again after ${SET_ASIDE_HOURS} hours.`));
+        await ctx.admin.from("lead_prep").update({ steps, created_at: new Date().toISOString() }).eq("opportunity_id", lead.id).eq("status", "working");
+      }
+      return { kind: "retry_later", opportunityId: lead.id, title: lead.title, error: message };
     }
     const owners = names(doc.findings, "owner");
     const contractors = names(doc.findings, "contractor");

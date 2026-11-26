@@ -13,6 +13,19 @@ export const MAX_CHECKED = 12;
 /** A run that started this long ago is treated as crashed, and its lead can be picked up again. */
 export const STALE_WORKING_MINUTES = 10;
 
+/** A lead whose research failed waits this long before it is tried again, so one slow lead cannot block the queue. */
+export const SET_ASIDE_HOURS = 24;
+/** The step that marks such a lead. Its row stays "working", which nothing shows to people. */
+export const SET_ASIDE_STEP = "Set aside";
+
+export const isSetAside = (steps: unknown) => Array.isArray(steps) && steps.some((s) => (s as { step?: unknown } | null)?.step === SET_ASIDE_STEP);
+
+/** Whether a "working" row should be removed, which makes its lead available again: a crashed run soon, a set-aside lead after a day. */
+export function shouldClearWorking(row: { created_at: string; steps: unknown }, now: number): boolean {
+  const age = now - new Date(row.created_at).getTime();
+  return age > (isSetAside(row.steps) ? SET_ASIDE_HOURS * 3_600_000 : STALE_WORKING_MINUTES * 60_000);
+}
+
 /** The word the agent signs with, because it does not know which person will open the draft. */
 export const SENDER_TOKEN = "SENDER_NAME";
 export const fillSender = (text: string, name: string) => text.split(SENDER_TOKEN).join(name);

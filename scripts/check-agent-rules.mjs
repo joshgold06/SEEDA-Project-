@@ -4,7 +4,7 @@
 // Run with:  node scripts/check-agent-rules.mjs   (Node 22.18 or newer, which runs .ts files directly)
 
 import assert from "node:assert/strict";
-import { draftProblems, fillSender, hasSomethingToAct, isCandidate, judgeTwins, MIN_SCORE, pickRecipient, SENDER_TOKEN } from "../lib/agent/judge.ts";
+import { draftProblems, fillSender, hasSomethingToAct, isCandidate, isSetAside, judgeTwins, MIN_SCORE, pickRecipient, SENDER_TOKEN, SET_ASIDE_HOURS, SET_ASIDE_STEP, shouldClearWorking } from "../lib/agent/judge.ts";
 
 // --- Which leads qualify -----------------------------------------------------------------
 const lead = { type: "News", inScan: true, dismissed: false, score: 70 };
@@ -35,6 +35,20 @@ assert.equal(pickRecipient([person("Sam Chair", "Chairman"), person("Lee Safe", 
 assert.equal(pickRecipient([person("Kim Pres", "President"), person("Ann Anon")]).name, "Kim Pres", "a role beats none");
 assert.equal(pickRecipient([person("Only Ceo", "CEO")]).name, "Only Ceo", "a chief executive is still chosen when nobody else is named");
 assert.equal(pickRecipient([person("Vee Pee", "Vice President"), person("Pres Ident", "President")]).name, "Vee Pee", "a vice president is not treated as top level");
+
+// --- A failed lead is set aside, so it cannot block the queue ---------------------------
+const now = Date.parse("2026-11-26T12:00:00Z");
+const ago = (minutes) => new Date(now - minutes * 60_000).toISOString();
+const setAside = [{ step: "Picked the lead" }, { step: SET_ASIDE_STEP }];
+const midRun = [{ step: "Picked the lead" }];
+assert.equal(isSetAside(setAside), true);
+assert.equal(isSetAside(midRun), false);
+assert.equal(isSetAside(null), false);
+assert.equal(shouldClearWorking({ created_at: ago(2), steps: midRun }, now), false, "a run in progress is left alone");
+assert.equal(shouldClearWorking({ created_at: ago(11), steps: midRun }, now), true, "a crashed run is cleared soon");
+assert.equal(shouldClearWorking({ created_at: ago(11), steps: setAside }, now), false, "a set-aside lead is not retried straight away");
+assert.equal(shouldClearWorking({ created_at: ago(23 * 60), steps: setAside }, now), false);
+assert.equal(shouldClearWorking({ created_at: ago(SET_ASIDE_HOURS * 60 + 1), steps: setAside }, now), true, "after a day it is tried again");
 
 // --- Whether research found anything to act on ------------------------------------------
 assert.equal(hasSomethingToAct([]), false, "nothing found");
