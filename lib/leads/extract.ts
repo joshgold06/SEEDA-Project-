@@ -1,5 +1,6 @@
 import type { FactorKey, Opportunity } from "../data";
 import { freshnessPoints } from "../freshness";
+import { withoutFederalOttawa } from "./federal";
 import { CONTRACTOR_PREFIX } from "./people";
 import type { NewsItem } from "./googleNews";
 import type { Lead } from "./schema";
@@ -41,7 +42,7 @@ export function scanRegion(text: string, ignorePlaces?: Set<string>): { region?:
 // A local outlet ("Calgary Herald", "Red Deer Advocate") is a fair hint when the headline
 // itself leaves the place out, so the publisher is only consulted as a fallback.
 function detectRegion(title: string, publisher: string): { region?: Region; place?: string; viaPublisher: boolean } {
-  const fromTitle = scanRegion(title);
+  const fromTitle = scanRegion(withoutFederalOttawa(title));
   if (fromTitle.region) return { ...fromTitle, viaPublisher: false };
   return { ...scanRegion(publisher, NATIONAL_OUTLET_PLACES), viaPublisher: true };
 }

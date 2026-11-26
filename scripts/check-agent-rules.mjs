@@ -4,7 +4,8 @@
 // Run with:  node scripts/check-agent-rules.mjs   (Node 22.18 or newer, which runs .ts files directly)
 
 import assert from "node:assert/strict";
-import { draftProblems, fillSender, hasSomethingToAct, isCandidate, isFinanceRole, isSetAside, judgeTwins, MIN_SCORE, pickRecipient, projectPeople, SENDER_TOKEN, SET_ASIDE_HOURS, SET_ASIDE_STEP, shouldClearWorking } from "../lib/agent/judge.ts";
+import { draftProblems, fillSender, hasSomethingToAct, isCandidate, isFinanceRole, isSetAside, judgeTwins, MIN_SCORE, pickRecipient, projectPeople, sameDeal, SENDER_TOKEN, SET_ASIDE_HOURS, SET_ASIDE_STEP, shouldClearWorking } from "../lib/agent/judge.ts";
+import { withoutFederalOttawa } from "../lib/leads/federal.ts";
 
 // --- Which leads qualify -----------------------------------------------------------------
 const lead = { type: "News", inScan: true, dismissed: false, score: 70 };
@@ -25,6 +26,37 @@ assert.deepEqual(judgeTwins([a], new Set(), new Set(["a"])), { twin: a, why: "be
 assert.deepEqual(judgeTwins([a], new Set(["a"]), new Set()), { twin: a, why: "already_prepared" });
 assert.equal(judgeTwins([a, b], new Set(["a"]), new Set(["b"])).why, "being_contacted", "being contacted outranks already prepared");
 assert.equal(judgeTwins([a], new Set(["zzz"]), new Set(["yyy"])), null, "an unrelated lead being worked does not block");
+
+// --- The same company and dollar figure is one project, wherever it was filed ------------
+const sunrise = { owner: "Enbridge", title: "Ottawa approves Enbridge's $4B Sunrise natural gas pipeline expansion project", value: 4e9 };
+const begins = { owner: "Enbridge", title: "Construction begins on $4-billion Enbridge natural gas pipeline expansion in B.C.", value: 4e9 };
+assert.equal(sameDeal(sunrise, begins), true, "the real case that was missed");
+assert.equal(sameDeal(sunrise, { ...begins, owner: "" }), true, "the headline names the company");
+assert.equal(sameDeal({ ...sunrise, owner: "" }, begins), true);
+assert.equal(sameDeal(sunrise, { ...begins, owner: "Enbridge Inc." }), true);
+assert.equal(sameDeal(sunrise, { ...begins, value: 4.1e9 }), true, "within 5 percent");
+assert.equal(sameDeal(sunrise, { ...begins, value: 2.9e9 }), false, "a different figure");
+assert.equal(sameDeal(sunrise, { ...begins, value: undefined }), false, "no figure");
+assert.equal(sameDeal(sunrise, { owner: "TC Energy", title: "TC Energy plans $4B line", value: 4e9 }), false, "a different company");
+assert.equal(sameDeal({ ...sunrise, value: 5e7 }, { ...begins, value: 5e7 }), false, "a small figure is too common");
+assert.equal(sameDeal({ ...sunrise, owner: "" }, { ...begins, owner: "" }), false, "no company named at all");
+assert.equal(sameDeal({ owner: "Energy", title: "A $4B plan", value: 4e9 }, { owner: "Energy", title: "B $4B plan", value: 4e9 }), false, "a generic word is not a company");
+
+// --- "Ottawa" meaning the federal government is not a location ---------------------------
+const ontarioCity = (t) => /\bottawa\b/i.test(withoutFederalOttawa(t));
+for (const t of [
+  "Ottawa approves Enbridge's $4B Sunrise natural gas pipeline expansion project",
+  "Ottawa supplying $200M for B.C.'s Woodfibre LNG project",
+  "Ottawa to fast-track nuclear project",
+  "Ottawa has formally approved the mine",
+  "Ottawa and Alberta sign pipeline accord",
+  "Ottawa-Alberta deal clears way for pipeline",
+  "LNG expansion wins approval from Ottawa",
+  "Ottawa’s approval of the Kitimat terminal",
+]) assert.equal(ontarioCity(t), false, `government: ${t}`);
+for (const t of ["Ottawa Hospital campus construction begins", "New $2B transit line planned for downtown Ottawa", "Ottawa city council approves tower", "Ottawa airport terminal expansion", "Aecon wins Ottawa LRT contract"]) {
+  assert.equal(ontarioCity(t), true, `the city: ${t}`);
+}
 
 // --- Who the email is for ----------------------------------------------------------------
 const acme = { owner: "Acme Mining Ltd.", contractors: [] };

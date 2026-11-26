@@ -74,6 +74,36 @@ const companyKey = (name: string) =>
     .trim();
 const mentions = (text: string, words: string) => ` ${text} `.includes(` ${words} `);
 
+/** Below this a shared dollar figure is too common to say two leads are one project. */
+export const SAME_DEAL_MIN = 100_000_000;
+
+export interface Deal {
+  /** The owner the source named, or "" when it named none. */
+  owner: string;
+  title: string;
+  value?: number;
+}
+
+/**
+ * Whether two leads are the same deal: the same company and the same large dollar figure (within 5%). The wording match
+ * only compares leads filed under one province, and headlines place one project differently, so this looks at neither
+ * wording nor location. When only one lead names the company, the other's headline has to mention it.
+ */
+export function sameDeal(a: Deal, b: Deal): boolean {
+  if (!a.value || !b.value || Math.min(a.value, b.value) < SAME_DEAL_MIN) return false;
+  if (Math.abs(a.value - b.value) / Math.max(a.value, b.value) > 0.05) return false;
+  const key = (d: Deal) => {
+    const k = companyKey(d.owner);
+    return k.length > 1 && !GENERIC_COMPANY.has(k) ? k : "";
+  };
+  const ka = key(a);
+  const kb = key(b);
+  if (ka && kb) return mentions(ka, kb) || mentions(kb, ka);
+  if (ka) return mentions(companyKey(b.title), ka);
+  if (kb) return mentions(companyKey(a.title), kb);
+  return false;
+}
+
 /**
  * Splits the named people into those who belong to the project and those left out. A person belongs when their company
  * is the owner or a contractor, or is named in a sentence the research gave for one of them (for example "Teck has

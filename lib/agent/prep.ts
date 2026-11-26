@@ -8,7 +8,7 @@ import { relatedIndex } from "../related";
 import { ResearchError, researchLead, type ResearchLead } from "../research/run";
 import { FindingsDocSchema, type Finding, type FindingsDoc } from "../research/types";
 import { OWNER_NOT_NAMED } from "../supabase/mappers";
-import { DAILY_CAP, draftProblems, hasSomethingToAct, isCandidate, isSetAside, judgeTwins, MAX_CHECKED, pickRecipient, projectPeople, SENDER_TOKEN, SET_ASIDE_HOURS, SET_ASIDE_STEP, shouldClearWorking, type ProjectCompanies } from "./judge";
+import { DAILY_CAP, draftProblems, hasSomethingToAct, isCandidate, isSetAside, judgeTwins, MAX_CHECKED, pickRecipient, projectPeople, sameDeal, SENDER_TOKEN, SET_ASIDE_HOURS, SET_ASIDE_STEP, shouldClearWorking, type ProjectCompanies } from "./judge";
 import type { PrepDraft, PrepStep } from "./types";
 
 // SERVER ONLY. The prep agent. For one good lead it does the first steps of the job a business-development person would
@@ -99,6 +99,19 @@ const toResearchLead = (o: Opportunity): ResearchLead => ({
 const names = (findings: Finding[], kind: Finding["kind"]) => findings.filter((f) => f.kind === kind).map((f) => f.name);
 
 const companiesOf = (o: Opportunity): ProjectCompanies => ({ owner: o.owner && o.owner !== OWNER_NOT_NAMED ? o.owner : undefined, contractors: contractorsOf(o) });
+
+const dealOf = (o: Opportunity) => ({ owner: companiesOf(o).owner ?? "", title: o.fullTitle ?? o.title, value: o.value });
+
+/**
+ * Every other lead that looks like the same project: by wording (all of them, not just the few a page shows), or by the
+ * same company and the same large dollar figure wherever each was filed.
+ */
+function twinsOf(ctx: AgentContext, lead: Opportunity) {
+  const byWording = ctx.lookup.project(lead, Number.POSITIVE_INFINITY).map((r) => r.lead);
+  const byDeal = ctx.known.filter((o) => o.id !== lead.id && !o.dismissed && sameDeal(dealOf(lead), dealOf(o)));
+  const unique = new Map([...byWording, ...byDeal].map((o) => [o.id, { id: o.id, title: o.fullTitle ?? o.title }]));
+  return [...unique.values()];
+}
 
 const CHOOSE_STEP = "Chose who to write to";
 /** The step that says who the email is for, and who was passed over, so the person can see why. */
@@ -212,7 +225,7 @@ export async function runAgentOnce(ctx: AgentContext, keys: AgentKeys): Promise<
 
   for (const lead of candidates) {
     // Step 1: is this the same project as one that is already being worked?
-    const twins = ctx.lookup.project(lead).map((r) => ({ id: r.lead.id, title: r.lead.fullTitle ?? r.lead.title }));
+    const twins = twinsOf(ctx, lead);
     const blocked = judgeTwins(twins, ctx.prepared, ctx.underway);
     if (blocked) {
       const why = blocked.why === "being_contacted" ? "is already being contacted" : "has already been prepared";

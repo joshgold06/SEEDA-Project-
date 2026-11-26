@@ -75,7 +75,8 @@ export function relatedIndex(all: Opportunity[]) {
     return { name: target.owner, leads: ordered.slice(0, 5), total: others.length };
   };
 
-  const project = (target: Opportunity): RelatedLead[] => {
+  /** `limit` caps the list a person is shown; a check that must not miss a match passes a larger one. */
+  const project = (target: Opportunity, limit = 5): RelatedLead[] => {
     if (!comparable(target)) return [];
     const mine = words.get(target.id) ?? wordsOf(target);
     const region = regions.get(target.id) ?? regionFromLocation(target.location);
@@ -100,7 +101,7 @@ export function relatedIndex(all: Opportunity[]) {
       else if (!bothValued && distinct.length >= 1 && shared.length >= 4 && shared.length / smaller >= 0.5) reason = `Both mention ${distinct.slice(0, 3).join(", ")}`;
       if (reason) out.push({ lead: other, reason, shared: shared.length, basis, distinct, overlap: shared.length / smaller });
     }
-    return out.sort((a, b) => b.shared - a.shared).slice(0, 5);
+    return out.sort((a, b) => b.shared - a.shared).slice(0, limit);
   };
 
   return { project, company };
