@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { isFinanceRole } from "../agent/judge";
 import { callGeminiJson, GeminiError } from "../ai/gemini";
 import { PUBLIC_OWNER_PATTERN } from "../leads/taxonomy";
 import { logServiceFailure } from "../log";
@@ -149,7 +150,7 @@ const SYSTEM = `You extract facts about ONE construction or industrial project f
 - Every item needs "evidence": one sentence copied word for word from the source, and "source": that source's number.
 - owner: the company or agency that owns or is developing the project.
 - contractors: companies hired or awarded work to engineer, procure or build it. Not the owner, regulators, banks or law firms.
-- people: named individuals with a job title tied to the project, the owner or a contractor (executives, project directors, managers who are quoted or named). Skip elected officials, journalists, analysts, people at chambers of commerce, industry associations, unions or advocacy groups, and anyone with no stated role.
+- people: named individuals with a job title tied to the project, the owner or a contractor (executives, project directors, managers who are quoted or named). Skip elected officials, journalists, analysts, investors and fund or portfolio managers, people at chambers of commerce, industry associations, unions or advocacy groups, and anyone with no stated role.
 - If the sources do not say, return an empty list. An empty list is a good answer.`;
 
 const OBJECT = (properties: Record<string, unknown>, required: string[]) => ({ type: "OBJECT", properties, required });
@@ -241,7 +242,7 @@ export function verifyFindings(raw: unknown, sources: SourceText[], lead: Resear
     const p = prove(item);
     if (!p) continue;
     const role = item.role?.trim() || undefined;
-    if (role && NOT_A_BUYER.test(role)) continue;
+    if (role && (NOT_A_BUYER.test(role) || isFinanceRole(role))) continue;
     if (NOT_A_COMPANY.test(`${item.company ?? ""} ${p.evidence}`)) continue;
     // A role is only shown when the quoted sentence carries it.
     const roleProved = role && norm(p.evidence).includes(norm(role)) ? role : undefined;

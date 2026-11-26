@@ -8,7 +8,7 @@ import { relatedIndex } from "../related";
 import { ResearchError, researchLead, type ResearchLead } from "../research/run";
 import { FindingsDocSchema, type Finding, type FindingsDoc } from "../research/types";
 import { OWNER_NOT_NAMED } from "../supabase/mappers";
-import { DAILY_CAP, draftProblems, hasSomethingToAct, isCandidate, isSetAside, judgeTwins, MAX_CHECKED, pickRecipient, SENDER_TOKEN, SET_ASIDE_HOURS, SET_ASIDE_STEP, shouldClearWorking } from "./judge";
+import { DAILY_CAP, draftProblems, hasSomethingToAct, isCandidate, isSetAside, judgeTwins, MAX_CHECKED, pickRecipient, projectPeople, SENDER_TOKEN, SET_ASIDE_HOURS, SET_ASIDE_STEP, shouldClearWorking, type ProjectCompanies } from "./judge";
 import type { PrepDraft, PrepStep } from "./types";
 
 // SERVER ONLY. The prep agent. For one good lead it does the first steps of the job a business-development person would
@@ -98,13 +98,28 @@ const toResearchLead = (o: Opportunity): ResearchLead => ({
 
 const names = (findings: Finding[], kind: Finding["kind"]) => findings.filter((f) => f.kind === kind).map((f) => f.name);
 
+const companiesOf = (o: Opportunity): ProjectCompanies => ({ owner: o.owner && o.owner !== OWNER_NOT_NAMED ? o.owner : undefined, contractors: contractorsOf(o) });
+
+const CHOOSE_STEP = "Chose who to write to";
+/** The step that says who the email is for, and who was passed over, so the person can see why. */
+function chooseStep(findings: Finding[], companies: ProjectCompanies): PrepStep {
+  const recipient = pickRecipient(findings, companies);
+  const { leftOut } = projectPeople(findings, companies);
+  const passed = leftOut.length ? ` Left out, because nothing shows they work on this project: ${leftOut.slice(0, 3).map((p) => `${p.name}${p.company ? ` (${p.company})` : ""}`).join(", ")}.` : "";
+  return recipient
+    ? step(CHOOSE_STEP, true, `${recipient.name}${recipient.role ? `, ${recipient.role}` : ""}${recipient.company ? ` at ${recipient.company}` : ""}.${passed}`)
+    : step(CHOOSE_STEP, false, `No named person from the owner or a contractor was found, so the draft is addressed to the project team.${passed}`);
+}
+
 /**
  * Writes the email for a lead from what the research found. A busy AI is retried once after a short wait, as long as the
  * run has time; with too little time left the draft is left for a later run instead of risking the whole run.
  */
 async function draftEmail(ctx: AgentContext, keys: AgentKeys, lead: Opportunity, findings: Finding[]): Promise<{ draft: PrepDraft | null; step: PrepStep }> {
-  const recipient = pickRecipient(findings);
+  const recipient = pickRecipient(findings, companiesOf(lead));
   const recipientInfo = recipient ? { name: recipient.name, role: recipient.role, company: recipient.company, evidence: recipient.evidence } : undefined;
+  // The writer is not given the source sentence, so it has nothing to claim it "saw".
+  const recipientForWriter = recipient ? { name: recipient.name, role: recipient.role, company: recipient.company } : undefined;
   const owners = names(findings, "owner");
   const contractors = names(findings, "contractor");
 
@@ -118,13 +133,15 @@ async function draftEmail(ctx: AgentContext, keys: AgentKeys, lead: Opportunity,
           senderCompany: "SEEDA (EPCMst network)",
           lead: { headline: lead.fullTitle ?? lead.title, location: lead.location, value: lead.value ? formatMoney(lead.value) : undefined, owner: lead.owner !== OWNER_NOT_NAMED ? lead.owner : undefined, serviceLine: lead.serviceLine, kind: lead.type },
           confirmed: { owner: owners[0], contractors: [...new Set([...contractorsOf(lead), ...contractors])] },
-          recipient: recipientInfo,
+          recipient: recipientForWriter,
           angle: "specialist",
           tone: "Warm",
         },
         { apiKey: keys.gemini, model: keys.model, totalMs: left - 2_000 }
       );
       const problems = draftProblems(out.body);
+      // A draft that fails the checks gets one more try before it is given up on.
+      if (problems.length > 0 && attempt === 0 && timeLeft(ctx) > MIN_DRAFT_MS) continue;
       if (problems.length > 0) return { draft: null, step: step(DRAFT_STEP, false, `The draft was thrown away because ${problems.join(" and ")}. Use “Write with AI” in the Outreach Studio instead.`) };
       return {
         draft: { subjectA: out.subjectA, subjectB: out.subjectB, body: out.body, linkedinNote: out.linkedinNote, tone: "Warm", angle: "specialist", recipient: recipientInfo },
@@ -152,13 +169,15 @@ export async function completeOneMissingDraft(ctx: AgentContext, keys: AgentKeys
   for (const row of (data ?? []) as { opportunity_id: string; findings: unknown; steps: PrepStep[] | null }[]) {
     const doc = FindingsDocSchema.safeParse(row.findings);
     const lead = ctx.known.find((o) => o.id === row.opportunity_id);
-    if (!doc.success || !lead || !hasSomethingToAct(doc.data.findings)) continue;
+    if (!doc.success || !lead || !hasSomethingToAct(doc.data.findings, companiesOf(lead))) continue;
     const result = await draftEmail(ctx, keys, lead, doc.data.findings);
     if (!result.draft) {
       // Try the next lead only if this failed for a reason that is not the AI being down.
       continue;
     }
-    const steps = [...(row.steps ?? []).filter((s) => s.step !== DRAFT_STEP), step(DRAFT_STEP, true, `${result.step.note} (Written in a later run, after the first attempt failed.)`)];
+    // Who it is for is chosen again with the draft, so the two steps always agree.
+    const kept = (row.steps ?? []).filter((s) => s.step !== DRAFT_STEP && s.step !== CHOOSE_STEP);
+    const steps = [...kept, chooseStep(doc.data.findings, companiesOf(lead)), step(DRAFT_STEP, true, `${result.step.note} (Written in a later run.)`)];
     await ctx.admin.from("lead_prep").update({ draft: result.draft, steps }).eq("opportunity_id", row.opportunity_id);
     return lead.title;
   }
@@ -242,20 +261,15 @@ export async function runAgentOnce(ctx: AgentContext, keys: AgentKeys): Promise<
     steps.push(step("Researched the web", doc.findings.length > 0, `${doc.sources.length} pages read. Found ${owners.length} owner${owners.length === 1 ? "" : "s"}, ${contractors.length} contractor${contractors.length === 1 ? "" : "s"} and ${people.length} named ${people.length === 1 ? "person" : "people"}, each with its quote.`));
 
     // Step 3: is there anything a person could act on? An owner alone is not enough to write to anyone.
-    if (!hasSomethingToAct(doc.findings)) {
-      steps.push(step("Stopped", false, doc.findings.length === 0 ? "The web research found nothing, so no email was drafted." : "Only the owner was found: no contractor and no named person to write to yet, so no email was drafted and the lead was not put forward."));
+    if (!hasSomethingToAct(doc.findings, companiesOf(lead))) {
+      steps.push(step("Stopped", false, doc.findings.length === 0 ? "The web research found nothing, so no email was drafted." : "No contractor, and nobody named from the owner or a contractor, was found to write to, so no email was drafted and the lead was not put forward."));
       await ctx.admin.from("lead_prep").update({ status: "skipped_nothing_found", findings: doc, steps, finished_at: new Date().toISOString() }).eq("opportunity_id", lead.id);
       ctx.prepared.delete(lead.id);
       return { kind: "skipped", opportunityId: lead.id, title: lead.title, reason: "nothing to act on" };
     }
 
     // Step 4: choose who to write to, then draft the email.
-    const recipient = pickRecipient(doc.findings);
-    steps.push(
-      recipient
-        ? step("Chose who to write to", true, `${recipient.name}${recipient.role ? `, ${recipient.role}` : ""}${recipient.company ? ` at ${recipient.company}` : ""}.`)
-        : step("Chose who to write to", false, "No named person with a role was found, so the draft is addressed to the project team.")
-    );
+    steps.push(chooseStep(doc.findings, companiesOf(lead)));
     const written = await draftEmail(ctx, keys, lead, doc.findings);
     steps.push(written.step);
 
