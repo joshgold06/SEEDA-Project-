@@ -9,6 +9,8 @@ export interface PrepStep {
   step: string;
   ok: boolean;
   note: string;
+  /** When a later run last tried this step; used to take turns between drafts that failed. */
+  at?: string;
 }
 
 export interface PrepDraft {

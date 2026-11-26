@@ -42,7 +42,8 @@ export interface SourceText {
 }
 
 const MAX_SOURCES = 10;
-const MAX_SOURCE_CHARS = 5000;
+// Ten pages go to the AI at once. At 5,000 characters each the free model often didn't answer in time.
+const MAX_SOURCE_CHARS = 3000;
 const SEARCH_TIMEOUT_MS = 20_000;
 
 // --- Reading the web -----------------------------------------------------------------------

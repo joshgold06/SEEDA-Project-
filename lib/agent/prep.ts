@@ -1,4 +1,5 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
+import { unsupportedClaims } from "../ai/claims";
 import { EmailAiError, writeEmail } from "../ai/email";
 import type { Opportunity } from "../data";
 import { formatMoney } from "../leads/extract";
@@ -8,7 +9,7 @@ import { relatedIndex } from "../related";
 import { ResearchError, researchLead, type ResearchLead } from "../research/run";
 import { FindingsDocSchema, type Finding, type FindingsDoc } from "../research/types";
 import { OWNER_NOT_NAMED } from "../supabase/mappers";
-import { DAILY_CAP, draftProblems, hasSomethingToAct, isCandidate, isSetAside, judgeTwins, MAX_CHECKED, pickRecipient, projectPeople, sameDeal, SENDER_TOKEN, SET_ASIDE_HOURS, SET_ASIDE_STEP, shouldClearWorking, type ProjectCompanies } from "./judge";
+import { claimsToHaveSeen, DAILY_CAP, draftProblems, hasSomethingToAct, isCandidate, isSetAside, judgeTwins, MAX_CHECKED, pickRecipient, projectPeople, sameDeal, SENDER_TOKEN, SET_ASIDE_HOURS, SET_ASIDE_STEP, shouldClearWorking, type ProjectCompanies } from "./judge";
 import type { PrepDraft, PrepStep } from "./types";
 
 // SERVER ONLY. The prep agent. For one good lead it does the first steps of the job a business-development person would
@@ -152,7 +153,13 @@ async function draftEmail(ctx: AgentContext, keys: AgentKeys, lead: Opportunity,
         },
         { apiKey: keys.gemini, model: keys.model, totalMs: left - 2_000 }
       );
-      const problems = draftProblems(out.body);
+      const claimed = unsupportedClaims(`${out.body}\n${out.linkedinNote}`);
+      const problems = [
+        ...draftProblems(out.body),
+        ...(claimed.length ? [`it claims experience the company facts don't list (${claimed.slice(0, 3).join(", ")})`] : []),
+        // The LinkedIn note is held to the same rule as the email.
+        ...(claimsToHaveSeen(out.linkedinNote) && !claimsToHaveSeen(out.body) ? ["the LinkedIn note says it saw the person somewhere"] : []),
+      ];
       // A draft that fails the checks gets one more try before it is given up on.
       if (problems.length > 0 && attempt === 0 && timeLeft(ctx) > MIN_DRAFT_MS) continue;
       if (problems.length > 0) return { draft: null, step: step(DRAFT_STEP, false, `The draft was thrown away because ${problems.join(" and ")}. Use “Write with AI” in the Outreach Studio instead.`) };
@@ -179,20 +186,24 @@ async function draftEmail(ctx: AgentContext, keys: AgentKeys, lead: Opportunity,
 export async function completeOneMissingDraft(ctx: AgentContext, keys: AgentKeys): Promise<string | null> {
   if (timeLeft(ctx) < MIN_DRAFT_MS + 3_000) return null;
   const { data } = await ctx.admin.from("lead_prep").select("opportunity_id, findings, steps").eq("status", "ready").is("draft", null).order("created_at", { ascending: false }).limit(10);
-  for (const row of (data ?? []) as { opportunity_id: string; findings: unknown; steps: PrepStep[] | null }[]) {
+  const rows = (data ?? []) as { opportunity_id: string; findings: unknown; steps: PrepStep[] | null }[];
+  // The one tried longest ago goes first, so a draft that keeps failing cannot hold up the others.
+  const lastTried = (steps: PrepStep[] | null) => steps?.find((s) => s.step === DRAFT_STEP)?.at ?? "";
+  rows.sort((a, b) => lastTried(a.steps).localeCompare(lastTried(b.steps)));
+
+  for (const row of rows) {
     const doc = FindingsDocSchema.safeParse(row.findings);
     const lead = ctx.known.find((o) => o.id === row.opportunity_id);
     if (!doc.success || !lead || !hasSomethingToAct(doc.data.findings, companiesOf(lead))) continue;
+    if (timeLeft(ctx) < MIN_DRAFT_MS) break;
     const result = await draftEmail(ctx, keys, lead, doc.data.findings);
-    if (!result.draft) {
-      // Try the next lead only if this failed for a reason that is not the AI being down.
-      continue;
-    }
-    // Who it is for is chosen again with the draft, so the two steps always agree.
+    // Who it is for is chosen again with the draft, so the two steps always agree. A failure is recorded too, with why.
     const kept = (row.steps ?? []).filter((s) => s.step !== DRAFT_STEP && s.step !== CHOOSE_STEP);
-    const steps = [...kept, chooseStep(doc.data.findings, companiesOf(lead)), step(DRAFT_STEP, true, `${result.step.note} (Written in a later run.)`)];
-    await ctx.admin.from("lead_prep").update({ draft: result.draft, steps }).eq("opportunity_id", row.opportunity_id);
-    return lead.title;
+    const note = `${result.step.note} (${result.draft ? "Written" : "Tried"} in a later run.)`;
+    const steps = [...kept, chooseStep(doc.data.findings, companiesOf(lead)), { ...step(DRAFT_STEP, result.draft !== null, note), at: new Date().toISOString() }];
+    await ctx.admin.from("lead_prep").update(result.draft ? { draft: result.draft, steps } : { steps }).eq("opportunity_id", row.opportunity_id);
+    if (result.draft) return lead.title;
+    console.error("EPCMst: prep agent could not rewrite a draft.", JSON.stringify({ lead: lead.id, reason: result.step.note }));
   }
   return null;
 }

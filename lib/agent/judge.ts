@@ -158,7 +158,12 @@ export function pickRecipient(findings: Finding[], lead: ProjectCompanies): Find
   return [...people].sort((a, b) => rank(b) - rank(a))[0];
 }
 
-const wordCount = (text: string) => (text.trim() ? text.trim().split(/\s+/).length : 0);
+// "I saw your name", "I noticed you", "and read about your work": the research gives a name and a sentence, not proof of
+// where the sender "saw" the person, so no wording of it may be claimed.
+const SEEN = /\byour name\b|\b(saw|seen|noticed|read|reading|heard|hearing|came across|spotted|learned|learnt)\b(\s+(about|of|that))?\s+(you|your)\b/i;
+export const claimsToHaveSeen = (text: string) => SEEN.test(text);
+
+const wordCount =(text: string) => (text.trim() ? text.trim().split(/\s+/).length : 0);
 
 /** Why a draft must not be shown, or an empty list when it passes. The prompt asks for these; the code makes sure. */
 export function draftProblems(body: string): string[] {
@@ -166,8 +171,7 @@ export function draftProblems(body: string): string[] {
   if (!body.includes(SENDER_TOKEN)) problems.push("it is not signed");
   if (/\[[^\]]{1,40}\]/.test(body)) problems.push("it contains a placeholder in square brackets");
   if (body.includes("!")) problems.push("it contains an exclamation mark");
-  // The research gives a name and a sentence, not proof of where "we saw you", so the email must not claim it.
-  if (/\byour name\b|\bI (have )?(read|saw|noticed|heard)( that)? you\b/i.test(body)) problems.push("it says it saw the person somewhere, which may not be true");
+  if (claimsToHaveSeen(body)) problems.push("it says it saw the person somewhere, which may not be true");
   if (wordCount(body) > 180) problems.push("it is longer than 180 words");
   if (wordCount(body) < 25) problems.push("it is too short to be an email");
   return problems;

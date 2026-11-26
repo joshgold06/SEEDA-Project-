@@ -4,8 +4,9 @@
 // Run with:  node scripts/check-agent-rules.mjs   (Node 22.18 or newer, which runs .ts files directly)
 
 import assert from "node:assert/strict";
-import { draftProblems, fillSender, hasSomethingToAct, isCandidate, isFinanceRole, isSetAside, judgeTwins, MIN_SCORE, pickRecipient, projectPeople, sameDeal, SENDER_TOKEN, SET_ASIDE_HOURS, SET_ASIDE_STEP, shouldClearWorking } from "../lib/agent/judge.ts";
+import { claimsToHaveSeen, draftProblems, fillSender, hasSomethingToAct, isCandidate, isFinanceRole, isSetAside, judgeTwins, MIN_SCORE, pickRecipient, projectPeople, sameDeal, SENDER_TOKEN, SET_ASIDE_HOURS, SET_ASIDE_STEP, shouldClearWorking } from "../lib/agent/judge.ts";
 import { withoutFederalOttawa } from "../lib/leads/federal.ts";
+import { unsupportedClaims } from "../lib/ai/claims.ts";
 
 // --- Which leads qualify -----------------------------------------------------------------
 const lead = { type: "News", inScan: true, dismissed: false, score: 70 };
@@ -129,9 +130,41 @@ assert.ok(draftProblems(good.replace("short call?", "short call!")).some((p) => 
 assert.ok(draftProblems(good + " word".repeat(200)).some((p) => p.includes("longer than 180")));
 assert.ok(draftProblems(`Hi\n\nBest,\n${SENDER_TOKEN}`).some((p) => p.includes("too short")));
 // Today's two real openings, and close variants, are rejected.
-for (const opening of ["I saw your name on the Highland Valley Copper project.", "I saw your name on a recent news report.", "I read that you are involved in the project.", "I noticed you are leading this work."]) {
+for (const opening of [
+  "I saw your name on the Highland Valley Copper project.",
+  "I saw your name on a recent news report.",
+  "I read that you are involved in the project.",
+  "I noticed you are leading this work.",
+  // Two more real ones that the first version of the rule let through.
+  "I saw the Coyote Hydrogen Project in a regulatory listing and read about your work on the energy hub.",
+  "I saw your work on the Baggage Handling Systems Building.",
+  "I came across your comments about the expansion.",
+]) {
   assert.ok(draftProblems(good.replace("I saw the Cedar LNG project in a public regulatory listing", opening)).some((p) => p.includes("saw the person")), opening);
+  assert.equal(claimsToHaveSeen(opening), true, opening);
 }
+for (const fine of ["I saw the Cedar LNG project in a public regulatory listing.", "I read about the pipeline expansion in a recent news report.", "How can we support your team?"]) {
+  assert.equal(claimsToHaveSeen(fine), false, fine);
+}
+
+// --- A draft may claim only the experience the company facts list ------------------------
+// The real invented sentence, built from the lead's own category.
+assert.deepEqual(unsupportedClaims("We also run SeeRem, our own platform, drawing on our work in municipal and industrial infrastructure."), ["municipal"]);
+for (const invented of [
+  "Our experience in water treatment could help.",
+  "SEEDA's expertise with airport baggage systems is relevant.",
+  "We have worked on several mining projects like yours.",
+  "SEEDA has delivered hydrogen facilities.",
+  "We specialize in copper processing.",
+]) assert.ok(unsupportedClaims(invented).length > 0, invented);
+for (const honest of [
+  "SEEDA has supported heavy industrial EPC projects across North America and globally, full-scope pipeline infrastructure developments across challenging terrain, and engineering and technical advisory support for upstream and midstream facilities, including skid fabrication and modular station field integration.",
+  "We have supported heavy industrial EPC projects.",
+  "Our experience with midstream facilities and pipeline developments could help your team.",
+  "We can fill expertise gaps on your mining project without a long engagement.",
+  "SEEDA runs SeeRem, its own platform that gives project owners real-time, auditable field data.",
+  "Would you be open to a short conversation about how we might support your team?",
+]) assert.deepEqual(unsupportedClaims(honest), [], honest);
 
 // --- Signing -----------------------------------------------------------------------------
 assert.equal(fillSender(`Best,\n${SENDER_TOKEN}`, "Josh"), "Best,\nJosh");
