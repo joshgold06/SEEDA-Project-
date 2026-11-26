@@ -22,7 +22,7 @@ export async function GET(request: Request) {
 
   const { data: run } = await admin.from("job_runs").insert({ job: JOB }).select("id").single();
   const result = await runAgent(admin, { tavily, gemini, model: process.env.GEMINI_MODEL || DEFAULT_GEMINI_MODEL }, { maxLeads: 2, startBeforeMs: 12_000 });
-  const summary = { outcomes: result.outcomes, seconds: result.seconds };
+  const summary = { outcomes: result.outcomes, completedDraft: result.completedDraft, seconds: result.seconds };
   if (run?.id) await admin.from("job_runs").update({ finished_at: new Date().toISOString(), ok: true, summary }).eq("id", run.id);
   return Response.json({ ok: true, ...summary });
 }

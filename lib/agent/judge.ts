@@ -38,7 +38,15 @@ export function judgeTwins(twins: Twin[], prepared: ReadonlySet<string>, underwa
   return null;
 }
 
-const TOP_LEVEL = /\b(chief|ceo|chairman|chair|founder)\b/i;
+/**
+ * Whether research found something a person can act on. An owner alone is not enough: the owner was usually already
+ * known, and there is nobody to write to and no contractor to approach. Such a lead is skipped, not put in front of someone.
+ */
+export function hasSomethingToAct(findings: Pick<Finding, "kind">[]): boolean {
+  return findings.some((f) => f.kind === "person" || f.kind === "contractor");
+}
+
+const TOP_LEVEL =/\b(chief|ceo|chairman|chair|founder)\b/i;
 const HANDS_ON = /\b(project|projects|construction|procurement|supply chain|engineering|operations|delivery|development)\b/i;
 
 function isTopLevel(role: string): boolean {

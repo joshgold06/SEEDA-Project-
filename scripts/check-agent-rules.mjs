@@ -4,7 +4,7 @@
 // Run with:  node scripts/check-agent-rules.mjs   (Node 22.18 or newer, which runs .ts files directly)
 
 import assert from "node:assert/strict";
-import { draftProblems, fillSender, isCandidate, judgeTwins, MIN_SCORE, pickRecipient, SENDER_TOKEN } from "../lib/agent/judge.ts";
+import { draftProblems, fillSender, hasSomethingToAct, isCandidate, judgeTwins, MIN_SCORE, pickRecipient, SENDER_TOKEN } from "../lib/agent/judge.ts";
 
 // --- Which leads qualify -----------------------------------------------------------------
 const lead = { type: "News", inScan: true, dismissed: false, score: 70 };
@@ -35,6 +35,13 @@ assert.equal(pickRecipient([person("Sam Chair", "Chairman"), person("Lee Safe", 
 assert.equal(pickRecipient([person("Kim Pres", "President"), person("Ann Anon")]).name, "Kim Pres", "a role beats none");
 assert.equal(pickRecipient([person("Only Ceo", "CEO")]).name, "Only Ceo", "a chief executive is still chosen when nobody else is named");
 assert.equal(pickRecipient([person("Vee Pee", "Vice President"), person("Pres Ident", "President")]).name, "Vee Pee", "a vice president is not treated as top level");
+
+// --- Whether research found anything to act on ------------------------------------------
+assert.equal(hasSomethingToAct([]), false, "nothing found");
+assert.equal(hasSomethingToAct([{ kind: "owner" }]), false, "an owner alone is not enough");
+assert.equal(hasSomethingToAct([{ kind: "owner" }, { kind: "owner" }]), false);
+assert.equal(hasSomethingToAct([{ kind: "owner" }, { kind: "contractor" }]), true, "a contractor is something to approach");
+assert.equal(hasSomethingToAct([{ kind: "person" }]), true, "a named person is someone to write to");
 
 // --- When a draft is thrown away ---------------------------------------------------------
 const good = `Hi Pat,\n\nI saw the Cedar LNG project in a public regulatory listing and wanted to introduce myself. SEEDA connects project teams with pre-vetted specialists for short, targeted input, so a team that already covers most of what it needs can add the rest without a long engagement.\n\nWould you be open to a short call?\n\nBest,\n${SENDER_TOKEN}`;

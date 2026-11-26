@@ -27,16 +27,18 @@ export interface GeminiRequest {
   schema: unknown;
   apiKey: string;
   model?: string;
+  /** A shorter time limit than the default, for a caller that has less of its own run left. */
+  totalMs?: number;
 }
 
-export async function callGeminiJson({ system, prompt, schema, apiKey, model }: GeminiRequest): Promise<unknown> {
+export async function callGeminiJson({ system, prompt, schema, apiKey, model, totalMs }: GeminiRequest): Promise<unknown> {
   const body = JSON.stringify({
     systemInstruction: { parts: [{ text: system }] },
     contents: [{ role: "user", parts: [{ text: prompt }] }],
     generationConfig: { response_mime_type: "application/json", response_schema: schema },
   });
   const models = [...new Set([model || DEFAULT_GEMINI_MODEL, ...FALLBACK_MODELS])];
-  const deadline = Date.now() + TOTAL_MS;
+  const deadline = Date.now() + Math.min(TOTAL_MS, totalMs ?? TOTAL_MS);
 
   let res: Response | null = null;
   let timedOut = false;

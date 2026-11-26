@@ -123,9 +123,9 @@ const RESPONSE_SCHEMA = {
   required: ["subject_a", "subject_b", "body", "linkedin_note"],
 };
 
-export async function writeEmail(facts: EmailFacts, opts: { apiKey: string; model?: string }): Promise<EmailOutput> {
+export async function writeEmail(facts: EmailFacts, opts: { apiKey: string; model?: string; totalMs?: number }): Promise<EmailOutput> {
   try {
-    const raw = await callGeminiJson({ system: SYSTEM, prompt: buildUserPrompt(facts), schema: RESPONSE_SCHEMA, apiKey: opts.apiKey, model: opts.model });
+    const raw = await callGeminiJson({ system: SYSTEM, prompt: buildUserPrompt(facts), schema: RESPONSE_SCHEMA, apiKey: opts.apiKey, model: opts.model, totalMs: opts.totalMs });
     const parsed = Output.safeParse(raw);
     if (!parsed.success || !parsed.data.body.trim()) throw new EmailAiError("The AI's answer wasn't usable. Try again.", 502, "failed");
     return tidy(parsed.data);
